@@ -127,7 +127,7 @@ async function main() {
   const ccState = ccA?.payload.state
   check('Mode: co-creation', ccState?.mode === 'co-creation')
   check('Turn order set', ccState?.current_turn_player_id != null)
-  check('Both have 5 cards', ccState?.hands[sessionA.player_id]?.length === 5 && ccState?.hands[sessionB.player_id]?.length === 5,
+  check('Both have 3 cards', ccState?.hands[sessionA.player_id]?.length === 3 && ccState?.hands[sessionB.player_id]?.length === 3,
     `A:${ccState?.hands[sessionA.player_id]?.length} B:${ccState?.hands[sessionB.player_id]?.length}`)
   check('B synced start', ccB?.payload.state.mode === 'co-creation')
   drain(a.messages); drain(b.messages)
@@ -147,7 +147,7 @@ async function main() {
   const picked = drawOpts.payload.cards[0]
   send(turnWS.ws, { type: 'card.draw.confirm', payload: { cardId: picked.id } })
   await sleep(200)
-  const handSize = 6 // 5 initial + 1 drawn
+  const handSize = 4 // 3 initial + 1 drawn
   const drawUpdateA = a.messages.filter(m => m.type === 'room.updated')
   const drawUpdateB = b.messages.filter(m => m.type === 'room.updated')
   const finalHandSize = drawUpdateA[drawUpdateA.length - 1]?.payload?.state?.hands?.[turnSid]?.length

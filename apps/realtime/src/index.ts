@@ -35,18 +35,16 @@ const PLAYER_COLORS = ['#f43f5e', '#2563eb', '#f59e0b', '#10b981', '#a855f7', '#
 const ROOM_TTL_MS = 3 * 24 * 60 * 60 * 1000
 
 const OFFICIAL_DECK: Array<Omit<DhCard, 'id' | 'is_custom' | 'pack_id'>> = [
-  { type: 'Location', title: 'Mirrorfall Keep', content: 'A ruined fortress whose walls reflect scenes from possible futures.', style: '#22c55e' },
-  { type: 'Location', title: 'Ash Orchard', content: 'Blackened fruit trees grow around a buried pact stone.', style: '#22c55e' },
-  { type: 'Location', title: 'The Low Harbor', content: 'A hidden port used by smugglers, pilgrims, and things from below.', style: '#22c55e' },
-  { type: 'Location', title: 'Bellwake Abbey', content: 'Every bell tolls at a different hour, and none agree with the sun.', style: '#22c55e' },
-  { type: 'NPC', title: 'The Veiled Regent', content: 'A ruler who governs through masks, proxies, and ceremonial doubles.', style: '#2563eb' },
-  { type: 'NPC', title: 'Captain Red Thread', content: 'A charming privateer who claims every debt can be tied into destiny.', style: '#2563eb' },
-  { type: 'NPC', title: 'The Last Glasswright', content: 'An artisan who can repair memories if paid with something honest.', style: '#2563eb' },
-  { type: 'NPC', title: 'Iron-Eye Auditor', content: 'A relentless judge tracking a missing royal ledger.', style: '#2563eb' },
-  { type: 'Feature', title: 'Moonless Festival', content: 'A yearly celebration when no shadow belongs to its owner.', style: '#a855f7' },
-  { type: 'Feature', title: 'Blood-Oath Charter', content: 'A legal document that punishes betrayal with mirrored wounds.', style: '#a855f7' },
-  { type: 'Feature', title: 'Starfall Prophecy', content: 'A prediction that the map must be redrawn after a falling star.', style: '#a855f7' },
-  { type: 'Feature', title: 'The Hollow Choir', content: 'A song that only the guilty can hear clearly.', style: '#a855f7' },
+  { type: 'Location', title: '镜坠堡', content: '一座废弃要塞，城墙映照出各种可能未来的碎片。', style: '#22c55e' },
+  { type: 'Location', title: '灰烬果园', content: '焦黑的果树围绕着一块被埋葬的契约之石生长。', style: '#22c55e' },
+  { type: 'Location', title: '低港暗湾', content: '走私者、朝圣者与海底之物共用的隐秘港口。', style: '#22c55e' },
+  { type: 'Location', title: '钟醒修道院', content: '每口钟在不同的时刻敲响，且无一与太阳同步。', style: '#22c55e' },
+  { type: 'NPC', title: '帷幕摄政', content: '通过面具、替身与仪式性分身统治国家的君主。', style: '#2563eb' },
+  { type: 'NPC', title: '红丝线船长', content: '一位迷人的私掠者，声称每笔债务都可编入命运之网。', style: '#2563eb' },
+  { type: 'NPC', title: '末代琉璃匠', content: '能用诚实之物作为酬劳，修补记忆的工匠。', style: '#2563eb' },
+  { type: 'NPC', title: '铁瞳审计官', content: '追查一本失落王室账册的无情审判者。', style: '#2563eb' },
+  { type: 'Feature', title: '无月祭典', content: '一年一度的庆典，此日所有影子不再属于各自的主人。', style: '#a855f7' },
+  { type: 'Feature', title: '血誓宪章', content: '一份以镜像创伤惩罚背叛的法律文书。', style: '#a855f7' },
 ]
 
 export default {
@@ -449,7 +447,7 @@ export class RoomDurableObject {
     room.current_turn_player_id = this.nextOnlinePlayer(room.turn_order[0] ?? null)
 
     for (const player of room.players.filter(item => item.is_online)) {
-      room.hands[player.id] = [...(room.hands[player.id] ?? []), ...room.deck.splice(0, 5)]
+      room.hands[player.id] = [...(room.hands[player.id] ?? []), ...room.deck.splice(0, 3)]
     }
   }
 
