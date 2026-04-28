@@ -4,14 +4,14 @@ import { fetchDhRoomBackup } from '@/lib/realtime'
 import {
   Settings, Download, Upload, Play, StopCircle,
   Clock, Hash, ChevronDown, Layers, FileJson, FileText,
-  Wifi, WifiOff,
+  Wifi, WifiOff, LogOut,
 } from 'lucide-react'
 
-export function TopBar() {
+export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const {
     room, currentPlayerId, connectionStatus, isExportMenuOpen, toggleExportMenu,
     openImportModal, openRoomSettings, startCoCreation, openEndConfirm,
-    manualReconnect, addToast,
+    manualReconnect, leaveRoom, addToast,
   } = useStore()
 
   const isHost = room?.host_player_id === currentPlayerId
@@ -221,6 +221,16 @@ export function TopBar() {
       {/* Room settings */}
       <button className="btn btn-ghost btn-icon" onClick={openRoomSettings} title="房间设置">
         <Settings size={15} />
+      </button>
+
+      {/* Leave room */}
+      <button
+        className="btn btn-ghost btn-sm"
+        onClick={() => { leaveRoom(); onLeaveRoom() }}
+        title="返回大厅"
+        style={{ marginLeft: 4 }}
+      >
+        <LogOut size={13} /> 退出
       </button>
     </div>
   )

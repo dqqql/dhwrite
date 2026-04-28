@@ -7,6 +7,6 @@ export default function App() {
   const [inRoom, setInRoom] = useState(false)
 
   return inRoom
-    ? <RoomPage />
+    ? <RoomPage onLeaveRoom={() => setInRoom(false)} />
     : <LandingPage onEnterRoom={() => setInRoom(true)} />
 }

@@ -11,7 +11,11 @@ import { ImportModal } from '@/components/ui/ImportModal'
 import { ToastContainer } from '@/components/ui/Toast'
 import { useStore } from '@/store/useStore'
 
-export function RoomPage() {
+interface RoomPageProps {
+  onLeaveRoom: () => void
+}
+
+export function RoomPage({ onLeaveRoom }: RoomPageProps) {
   const { room, connectionStatus, manualReconnect } = useStore()
 
   if (!room) {
@@ -37,7 +41,7 @@ export function RoomPage() {
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
       {/* Top bar (z=300) */}
-      <TopBar />
+      <TopBar onLeaveRoom={onLeaveRoom} />
 
       {/* Reconnecting / disconnected banner */}
       {showReconnectBanner && (
