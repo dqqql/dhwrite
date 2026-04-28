@@ -1,14 +1,13 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
-import type {
-  RoomState, DhCard, MapCard, Connection, Annotation,
-  Toast, DrawOption
-} from '@/types'
-import { createMockRoomState, DECK_CARDS, shuffle, makeCard } from '@/data/mockData'
+import { assertDhPack, type ClientMessage, type DhCard, type RoomSession, type RoomState } from '@dhgc/shared'
+import type { Annotation, Connection, DrawOption, Toast } from '@/types'
+import { createRoomRequest, joinRoomRequest, openRoomSocket } from '@/lib/realtime'
 import { getCardGridSize, snapToGrid } from '@/utils/grid'
 
+type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error'
+
 interface UIState {
-  // Panels
   isPlayerPanelOpen: boolean
   isHandPanelOpen: boolean
   isExportMenuOpen: boolean
@@ -17,46 +16,37 @@ interface UIState {
   isRoomSettingsOpen: boolean
   isDrawModalOpen: boolean
   isEndCoCreationConfirmOpen: boolean
-
-  // Context menu
+  isEnteringRoom: boolean
+  connectionStatus: ConnectionStatus
   contextMenu: { x: number; y: number; cardId: string } | null
-
-  // Active card (expanded)
   expandedCardId: string | null
-
-  // Draw options
   drawOptions: DrawOption[]
-
-  // Toasts
   toasts: Toast[]
-
-  // Current player id (mock: 'p1')
   currentPlayerId: string
+  session: RoomSession | null
 }
 
 interface AppStore extends UIState {
   room: RoomState | null
 
-  // Init
-  initRoom: () => void
+  createRoom: (input: { nickname: string; roomName: string; selectedPackIds?: string[] }) => Promise<boolean>
+  joinRoom: (input: { inviteCode: string; nickname: string }) => Promise<boolean>
 
-  // Mode
   startCoCreation: () => void
   endCoCreation: () => void
 
-  // Turn
   endTurn: () => void
   forceSkipTurn: (playerId: string) => void
 
-  // Cards – hand
   drawCards: () => void
   confirmDraw: (cardId: string) => void
   createCustomCard: (card: Omit<DhCard, 'id'>) => void
   playCard: (cardId: string, x?: number, y?: number) => void
 
-  // Cards – map
   moveCard: (cardId: string, x: number, y: number) => void
+  commitMoveCard: (cardId: string, x: number, y: number) => void
   resizeCard: (cardId: string, gridScale: number) => void
+  commitResizeCard: (cardId: string, gridScale: number) => void
   toggleExpandCard: (cardId: string) => void
   editCard: (cardId: string, updates: Partial<DhCard>) => void
   deleteCard: (cardId: string) => void
@@ -64,15 +54,13 @@ interface AppStore extends UIState {
   lockCard: (cardId: string) => void
   unlockCard: (cardId: string) => void
 
-  // Connections
   addConnection: (conn: Omit<Connection, 'id'>) => void
   removeConnection: (connId: string) => void
 
-  // Annotations
   addAnnotation: (ann: Omit<Annotation, 'id'>) => void
   removeAnnotation: (annId: string) => void
+  importPack: (value: unknown) => void
 
-  // UI
   setContextMenu: (menu: { x: number; y: number; cardId: string } | null) => void
   setExpandedCard: (id: string | null) => void
   togglePlayerPanel: () => void
@@ -89,349 +77,470 @@ interface AppStore extends UIState {
   openEndConfirm: () => void
   closeEndConfirm: () => void
 
-  // Toast
   addToast: (message: string, type?: Toast['type']) => void
   removeToast: (id: string) => void
 }
 
-export const useStore = create<AppStore>((set, get) => ({
-  // ── Initial UI state ─────────────────────────────────────────────
-  isPlayerPanelOpen: true,
-  isHandPanelOpen: true,
-  isExportMenuOpen: false,
-  isImportModalOpen: false,
-  isCreateCardModalOpen: false,
-  isRoomSettingsOpen: false,
-  isDrawModalOpen: false,
-  isEndCoCreationConfirmOpen: false,
-  contextMenu: null,
-  expandedCardId: null,
-  drawOptions: [],
-  toasts: [],
-  currentPlayerId: 'p1',
-  room: null,
+let activeSocket: WebSocket | null = null
+let socketGeneration = 0
 
-  initRoom: () => {
-    set({ room: createMockRoomState('p1') })
-    get().addToast('已连接到房间（演示模式）', 'info')
-  },
+function preserveTransientRoomState(previous: RoomState | null, incoming: RoomState): RoomState {
+  if (!previous) return incoming
 
-  // ── Mode ──────────────────────────────────────────────────────────
-  startCoCreation: () => {
-    const { room } = get()
-    if (!room) return
-    set(s => ({
-      room: { ...s.room!, mode: 'co-creation', current_turn_player_id: room.turn_order[0] }
-    }))
-    get().addToast('已开始共创模式！每位玩家已发放初始手牌。', 'success')
-  },
+  const expandedById = new Map(previous.map_cards.map((card) => [card.id, card.is_expanded]))
 
-  endCoCreation: () => {
-    // Custom cards in hands are deleted; official/imported cards return to deck
-    set(s => {
-      if (!s.room) return {}
-      const newHands: Record<string, DhCard[]> = {}
-      for (const pid of Object.keys(s.room.hands)) {
-        newHands[pid] = [] // all hands cleared
-      }
-      return {
-        room: { ...s.room, mode: 'free', current_turn_player_id: null, hands: newHands },
-        isEndCoCreationConfirmOpen: false,
-      }
-    })
-    get().addToast('共创已结束，进入自由模式。', 'info')
-  },
-
-  // ── Turn ──────────────────────────────────────────────────────────
-  endTurn: () => {
-    const { room } = get()
-    if (!room || !room.current_turn_player_id) return
-    const order = room.turn_order.filter(id =>
-      room.players.find(p => p.id === id)?.is_online
-    )
-    const idx = order.indexOf(room.current_turn_player_id)
-    const next = order[(idx + 1) % order.length]
-    set(s => ({ room: { ...s.room!, current_turn_player_id: next } }))
-    const nextPlayer = room.players.find(p => p.id === next)
-    get().addToast(`轮到 ${nextPlayer?.nickname || next} 的回合`, 'info')
-  },
-
-  forceSkipTurn: (playerId: string) => {
-    const { room } = get()
-    if (!room) return
-    const order = room.turn_order.filter(id =>
-      room.players.find(p => p.id === id)?.is_online && id !== playerId
-    )
-    const next = order[0] ?? null
-    set(s => ({ room: { ...s.room!, current_turn_player_id: next } }))
-    get().addToast('已强制跳过该玩家。', 'warning')
-  },
-
-  // ── Cards – hand ──────────────────────────────────────────────────
-  drawCards: () => {
-    const { room } = get()
-    if (!room) return
-    // Get cards not already in hands or on map
-    const usedIds = new Set([
-      ...Object.values(room.hands).flat().map(c => c.title),
-      ...room.map_cards.map(c => c.title),
-    ])
-    const available = DECK_CARDS.filter(c => !usedIds.has(c.title))
-    if (available.length < 3) {
-      get().addToast('牌组已空，无法抽牌。', 'error')
-      return
-    }
-    const shuffled = shuffle(available)
-    const options: DrawOption[] = shuffled.slice(0, 3).map(makeCard)
-    set({ drawOptions: options, isDrawModalOpen: true })
-  },
-
-  confirmDraw: (cardId: string) => {
-    const { room, drawOptions, currentPlayerId } = get()
-    if (!room) return
-    const card = drawOptions.find(c => c.id === cardId)
-    if (!card) return
-    set(s => ({
-      room: {
-        ...s.room!,
-        hands: {
-          ...s.room!.hands,
-          [currentPlayerId]: [...(s.room!.hands[currentPlayerId] ?? []), card],
-        },
-      },
-      isDrawModalOpen: false,
-      drawOptions: [],
-    }))
-    get().addToast(`已获得卡牌：${card.title}`, 'success')
-  },
-
-  createCustomCard: (cardData) => {
-    const { currentPlayerId } = get()
-    const card: DhCard = { ...cardData, id: nanoid(), is_custom: true }
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        hands: {
-          ...s.room.hands,
-          [currentPlayerId]: [...(s.room.hands[currentPlayerId] ?? []), card],
-        },
-      } : null,
-      isCreateCardModalOpen: false,
-    }))
-    get().addToast(`已创建自定义卡牌：${card.title}`, 'success')
-  },
-
-  playCard: (cardId, x = 200, y = 200) => {
-    const { room, currentPlayerId } = get()
-    if (!room) return
-    const hand = room.hands[currentPlayerId] ?? []
-    const card = hand.find(c => c.id === cardId)
-    if (!card) return
-    const player = room.players.find(p => p.id === currentPlayerId)
-    const size = getCardGridSize(card.type)
-    const mapCard: MapCard = {
+  return {
+    ...incoming,
+    map_cards: incoming.map_cards.map((card) => ({
       ...card,
-      x: snapToGrid(x),
-      y: snapToGrid(y),
-      width: size.width,
-      height: size.height,
-      grid_cols: size.cols,
-      grid_rows: size.rows,
-      grid_scale: size.scale,
-      placed_by: player?.nickname ?? 'Unknown',
-      player_color: player?.color ?? '#888',
-      is_expanded: false,
+      is_expanded: expandedById.get(card.id) ?? card.is_expanded,
+    })),
+  }
+}
+
+export const useStore = create<AppStore>((set, get) => {
+  const applyRoomState = (room: RoomState) => {
+    set((state) => ({ room: preserveTransientRoomState(state.room, room) }))
+  }
+
+  const disconnectSocket = () => {
+    socketGeneration += 1
+    if (activeSocket && activeSocket.readyState < WebSocket.CLOSING) {
+      activeSocket.close()
     }
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        hands: {
-          ...s.room.hands,
-          [currentPlayerId]: s.room.hands[currentPlayerId].filter(c => c.id !== cardId),
-        },
-        map_cards: [...s.room.map_cards, mapCard],
-      } : null,
-    }))
-    get().addToast(`已打出：${card.title}`, 'success')
-  },
+    activeSocket = null
+  }
 
-  // ── Cards – map ───────────────────────────────────────────────────
-  moveCard: (cardId, x, y) => {
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        map_cards: s.room.map_cards.map(c => c.id === cardId ? {
-          ...c,
-          x: snapToGrid(x),
-          y: snapToGrid(y),
-        } : c),
-      } : null,
-    }))
-  },
+  const sendMessage = (message: ClientMessage) => {
+    if (!activeSocket || activeSocket.readyState !== WebSocket.OPEN) {
+      get().addToast('实时连接尚未建立，请稍后重试。', 'error')
+      return false
+    }
 
-  resizeCard: (cardId, gridScale) => {
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        map_cards: s.room.map_cards.map(c => {
-          if (c.id !== cardId) return c
-          const size = getCardGridSize(c.type, gridScale)
-          return {
-            ...c,
-            width: size.width,
-            height: size.height,
-            grid_cols: size.cols,
-            grid_rows: size.rows,
-            grid_scale: size.scale,
+    activeSocket.send(JSON.stringify({
+      ...message,
+      requestId: message.requestId ?? nanoid(),
+    }))
+    return true
+  }
+
+  const connectSession = async (session: RoomSession) => {
+    disconnectSocket()
+    const generation = socketGeneration
+
+    set({
+      session,
+      currentPlayerId: session.player_id,
+      connectionStatus: 'connecting',
+    })
+
+    return new Promise<void>((resolve, reject) => {
+      let settled = false
+      let receivedSnapshot = false
+
+      const finishResolve = () => {
+        if (settled) return
+        settled = true
+        resolve()
+      }
+
+      const finishReject = (error: Error) => {
+        if (settled) return
+        settled = true
+        reject(error)
+      }
+
+      const socket = openRoomSocket(session.websocket_url, {
+        onClose: () => {
+          if (generation !== socketGeneration || activeSocket !== socket) return
+          activeSocket = null
+          set({ connectionStatus: receivedSnapshot ? 'error' : 'idle' })
+          if (receivedSnapshot) {
+            get().addToast('与房间的实时连接已断开。', 'warning')
+          } else {
+            finishReject(new Error('WebSocket closed before room snapshot arrived'))
           }
-        }),
-      } : null,
-    }))
-  },
-
-  toggleExpandCard: (cardId) => {
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        map_cards: s.room.map_cards.map(c =>
-          c.id === cardId ? { ...c, is_expanded: !c.is_expanded } : c
-        ),
-      } : null,
-      expandedCardId: s.expandedCardId === cardId ? null : cardId,
-    }))
-  },
-
-  editCard: (cardId, updates) => {
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        map_cards: s.room.map_cards.map(c => c.id === cardId ? { ...c, ...updates } : c),
-      } : null,
-    }))
-  },
-
-  deleteCard: (cardId) => {
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        map_cards: s.room.map_cards.filter(c => c.id !== cardId),
-        connections: s.room.connections.filter(c => c.from_card_id !== cardId && c.to_card_id !== cardId),
-      } : null,
-      contextMenu: null,
-    }))
-    get().addToast('卡牌已删除。', 'info')
-  },
-
-  recycleCard: (cardId) => {
-    const { room } = get()
-    if (!room) return
-    const card = room.map_cards.find(c => c.id === cardId)
-    if (!card) return
-    // Find original player by placed_by nickname
-    const ownerPlayer = room.players.find(p => p.nickname === card.placed_by)
-    const targetId = ownerPlayer?.id ?? Object.keys(room.hands)[0]
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        map_cards: s.room.map_cards.filter(c => c.id !== cardId),
-        connections: s.room.connections.filter(c => c.from_card_id !== cardId && c.to_card_id !== cardId),
-        hands: {
-          ...s.room.hands,
-          [targetId]: [...(s.room.hands[targetId] ?? []), card],
         },
-      } : null,
-      contextMenu: null,
-    }))
-    get().addToast(`卡牌已回收至 ${card.placed_by} 的手牌。`, 'info')
-  },
+        onError: (error) => {
+          if (generation !== socketGeneration || activeSocket !== socket) return
+          if (!receivedSnapshot) finishReject(error)
+        },
+        onMessage: (message) => {
+          if (generation !== socketGeneration || activeSocket !== socket) return
 
-  lockCard: (cardId) => {
-    const { currentPlayerId, room } = get()
-    const player = room?.players.find(p => p.id === currentPlayerId)
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        map_cards: s.room.map_cards.map(c =>
-          c.id === cardId ? { ...c, locked_by: player?.nickname } : c
-        ),
-      } : null,
-    }))
-  },
+          switch (message.type) {
+            case 'room.snapshot':
+              receivedSnapshot = true
+              applyRoomState(message.payload.state)
+              set({
+                currentPlayerId: message.payload.you.player_id,
+                connectionStatus: 'connected',
+              })
+              finishResolve()
+              return
 
-  unlockCard: (cardId) => {
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        map_cards: s.room.map_cards.map(c =>
-          c.id === cardId ? { ...c, locked_by: undefined } : c
-        ),
-      } : null,
-    }))
-  },
+            case 'room.updated':
+              applyRoomState(message.payload.state)
+              set({ connectionStatus: 'connected' })
+              return
 
-  // ── Connections ───────────────────────────────────────────────────
-  addConnection: (conn) => {
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        connections: [...s.room.connections, { ...conn, id: nanoid() }],
-      } : null,
-    }))
-  },
+            case 'draw.options':
+              set({
+                drawOptions: message.payload.cards,
+                isDrawModalOpen: true,
+              })
+              return
 
-  removeConnection: (connId) => {
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        connections: s.room.connections.filter(c => c.id !== connId),
-      } : null,
-    }))
-  },
+            case 'error':
+              get().addToast(message.payload.message, 'error')
+              return
 
-  // ── Annotations ───────────────────────────────────────────────────
-  addAnnotation: (ann) => {
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        annotations: [...s.room.annotations, { ...ann, id: nanoid() }],
-      } : null,
-    }))
-  },
+            case 'ack':
+            case 'pong':
+              return
+          }
+        },
+      })
 
-  removeAnnotation: (annId) => {
-    set(s => ({
-      room: s.room ? {
-        ...s.room,
-        annotations: s.room.annotations.filter(a => a.id !== annId),
-      } : null,
-    }))
-  },
+      activeSocket = socket
+    })
+  }
 
-  // ── UI ────────────────────────────────────────────────────────────
-  setContextMenu: (menu) => set({ contextMenu: menu }),
-  setExpandedCard: (id) => set({ expandedCardId: id }),
-  togglePlayerPanel: () => set(s => ({ isPlayerPanelOpen: !s.isPlayerPanelOpen })),
-  toggleHandPanel: () => set(s => ({ isHandPanelOpen: !s.isHandPanelOpen })),
-  toggleExportMenu: () => set(s => ({ isExportMenuOpen: !s.isExportMenuOpen })),
-  openImportModal: () => set({ isImportModalOpen: true }),
-  closeImportModal: () => set({ isImportModalOpen: false }),
-  openCreateCardModal: () => set({ isCreateCardModalOpen: true }),
-  closeCreateCardModal: () => set({ isCreateCardModalOpen: false }),
-  openRoomSettings: () => set({ isRoomSettingsOpen: true }),
-  closeRoomSettings: () => set({ isRoomSettingsOpen: false }),
-  openDrawModal: () => set({ isDrawModalOpen: true }),
-  closeDrawModal: () => set({ isDrawModalOpen: false }),
-  openEndConfirm: () => set({ isEndCoCreationConfirmOpen: true }),
-  closeEndConfirm: () => set({ isEndCoCreationConfirmOpen: false }),
+  return {
+    isPlayerPanelOpen: true,
+    isHandPanelOpen: true,
+    isExportMenuOpen: false,
+    isImportModalOpen: false,
+    isCreateCardModalOpen: false,
+    isRoomSettingsOpen: false,
+    isDrawModalOpen: false,
+    isEndCoCreationConfirmOpen: false,
+    isEnteringRoom: false,
+    connectionStatus: 'idle',
+    contextMenu: null,
+    expandedCardId: null,
+    drawOptions: [],
+    toasts: [],
+    currentPlayerId: '',
+    session: null,
+    room: null,
 
-  // ── Toast ─────────────────────────────────────────────────────────
-  addToast: (message, type = 'info') => {
-    const id = nanoid()
-    set(s => ({ toasts: [...s.toasts, { id, message, type }] }))
-    setTimeout(() => get().removeToast(id), 3500)
-  },
+    createRoom: async ({ nickname, roomName, selectedPackIds }) => {
+      const cleanedNickname = nickname.trim()
+      if (!cleanedNickname) {
+        get().addToast('请输入昵称', 'error')
+        return false
+      }
 
-  removeToast: (id) => {
-    set(s => ({ toasts: s.toasts.filter(t => t.id !== id) }))
-  },
-}))
+      set({
+        isEnteringRoom: true,
+        connectionStatus: 'connecting',
+      })
+
+      try {
+        const response = await createRoomRequest({
+          nickname: cleanedNickname,
+          room_name: roomName.trim(),
+          selected_pack_ids: selectedPackIds,
+        })
+        await connectSession(response.session)
+        get().addToast(`房间已创建，邀请码 ${response.session.invite_code}`, 'success')
+        return true
+      } catch (error) {
+        disconnectSocket()
+        set({
+          room: null,
+          session: null,
+          connectionStatus: 'error',
+        })
+        get().addToast(error instanceof Error ? error.message : '创建房间失败', 'error')
+        return false
+      } finally {
+        set({ isEnteringRoom: false })
+      }
+    },
+
+    joinRoom: async ({ inviteCode, nickname }) => {
+      const cleanedNickname = nickname.trim()
+      const cleanedInviteCode = inviteCode.trim().toUpperCase()
+      if (!cleanedNickname) {
+        get().addToast('请输入昵称', 'error')
+        return false
+      }
+      if (!cleanedInviteCode) {
+        get().addToast('请输入邀请码', 'error')
+        return false
+      }
+
+      set({
+        isEnteringRoom: true,
+        connectionStatus: 'connecting',
+      })
+
+      try {
+        const response = await joinRoomRequest({
+          invite_code: cleanedInviteCode,
+          nickname: cleanedNickname,
+        })
+        await connectSession(response.session)
+        get().addToast(`已加入房间 ${response.state.room_name}`, 'success')
+        return true
+      } catch (error) {
+        disconnectSocket()
+        set({
+          room: null,
+          session: null,
+          connectionStatus: 'error',
+        })
+        get().addToast(error instanceof Error ? error.message : '加入房间失败', 'error')
+        return false
+      } finally {
+        set({ isEnteringRoom: false })
+      }
+    },
+
+    startCoCreation: () => {
+      sendMessage({ type: 'room.startCoCreation' })
+    },
+
+    endCoCreation: () => {
+      set({ isEndCoCreationConfirmOpen: false })
+      sendMessage({ type: 'room.endCoCreation' })
+    },
+
+    endTurn: () => {
+      sendMessage({ type: 'turn.end' })
+    },
+
+    forceSkipTurn: (playerId) => {
+      sendMessage({ type: 'turn.forceSkip', payload: { playerId } })
+    },
+
+    drawCards: () => {
+      sendMessage({ type: 'card.draw' })
+    },
+
+    confirmDraw: (cardId) => {
+      set({ isDrawModalOpen: false })
+      sendMessage({ type: 'card.draw.confirm', payload: { cardId } })
+    },
+
+    createCustomCard: (cardData) => {
+      const { type, title, content, style } = cardData
+      const sent = sendMessage({
+        type: 'card.create',
+        payload: {
+          card: { type, title, content, style },
+        },
+      })
+
+      if (sent) {
+        set({ isCreateCardModalOpen: false })
+        get().addToast(`已创建自定义卡牌：${title}`, 'success')
+      }
+    },
+
+    playCard: (cardId, x = 200, y = 200) => {
+      sendMessage({
+        type: 'card.play',
+        payload: { cardId, x: snapToGrid(x), y: snapToGrid(y) },
+      })
+    },
+
+    moveCard: (cardId, x, y) => {
+      set((state) => ({
+        room: state.room ? {
+          ...state.room,
+          map_cards: state.room.map_cards.map((card) => card.id === cardId ? {
+            ...card,
+            x: snapToGrid(x),
+            y: snapToGrid(y),
+          } : card),
+        } : null,
+      }))
+    },
+
+    commitMoveCard: (cardId, x, y) => {
+      sendMessage({
+        type: 'card.move.commit',
+        payload: { cardId, x: snapToGrid(x), y: snapToGrid(y) },
+      })
+    },
+
+    resizeCard: (cardId, gridScale) => {
+      set((state) => ({
+        room: state.room ? {
+          ...state.room,
+          map_cards: state.room.map_cards.map((card) => {
+            if (card.id !== cardId) return card
+            const nextSize = getCardGridSize(card.type, gridScale)
+            return {
+              ...card,
+              width: nextSize.width,
+              height: nextSize.height,
+              grid_cols: nextSize.grid_cols,
+              grid_rows: nextSize.grid_rows,
+              grid_scale: nextSize.grid_scale,
+            }
+          }),
+        } : null,
+      }))
+    },
+
+    commitResizeCard: (cardId, gridScale) => {
+      sendMessage({
+        type: 'card.resize.commit',
+        payload: { cardId, gridScale },
+      })
+    },
+
+    toggleExpandCard: (cardId) => {
+      set((state) => ({
+        room: state.room ? {
+          ...state.room,
+          map_cards: state.room.map_cards.map((card) => (
+            card.id === cardId ? { ...card, is_expanded: !card.is_expanded } : card
+          )),
+        } : null,
+        expandedCardId: state.expandedCardId === cardId ? null : cardId,
+      }))
+    },
+
+    editCard: (cardId, updates) => {
+      sendMessage({
+        type: 'card.edit',
+        payload: { cardId, updates },
+      })
+    },
+
+    deleteCard: (cardId) => {
+      const sent = sendMessage({
+        type: 'card.delete',
+        payload: { cardId },
+      })
+      if (sent) {
+        set({ contextMenu: null })
+      }
+    },
+
+    recycleCard: (cardId) => {
+      const sent = sendMessage({
+        type: 'card.recycle',
+        payload: { cardId },
+      })
+      if (sent) {
+        set({ contextMenu: null })
+      }
+    },
+
+    lockCard: (cardId) => {
+      const { room, currentPlayerId } = get()
+      const player = room?.players.find((item) => item.id === currentPlayerId)
+
+      set((state) => ({
+        room: state.room ? {
+          ...state.room,
+          map_cards: state.room.map_cards.map((card) => card.id === cardId ? {
+            ...card,
+            locked_by: player?.nickname,
+            locked_by_player_id: currentPlayerId,
+          } : card),
+        } : null,
+      }))
+
+      sendMessage({
+        type: 'card.lock',
+        payload: { cardId },
+      })
+    },
+
+    unlockCard: (cardId) => {
+      set((state) => ({
+        room: state.room ? {
+          ...state.room,
+          map_cards: state.room.map_cards.map((card) => card.id === cardId ? {
+            ...card,
+            locked_by: undefined,
+            locked_by_player_id: undefined,
+            locked_until: undefined,
+          } : card),
+        } : null,
+      }))
+
+      sendMessage({
+        type: 'card.unlock',
+        payload: { cardId },
+      })
+    },
+
+    addConnection: (conn) => {
+      sendMessage({
+        type: 'connection.add',
+        payload: conn,
+      })
+    },
+
+    removeConnection: (connId) => {
+      sendMessage({
+        type: 'connection.remove',
+        payload: { connectionId: connId },
+      })
+    },
+
+    addAnnotation: (ann) => {
+      sendMessage({
+        type: 'annotation.add',
+        payload: ann,
+      })
+    },
+
+    removeAnnotation: (annId) => {
+      sendMessage({
+        type: 'annotation.remove',
+        payload: { annotationId: annId },
+      })
+    },
+
+    importPack: (value) => {
+      try {
+        const pack = assertDhPack(value)
+        const sent = sendMessage({
+          type: 'room.importPack',
+          payload: { pack },
+        })
+        if (sent) {
+          set({ isImportModalOpen: false })
+          get().addToast(`已导入卡包：${pack.pack_name}`, 'success')
+        }
+      } catch (error) {
+        get().addToast(error instanceof Error ? error.message : '卡包格式不正确', 'error')
+      }
+    },
+
+    setContextMenu: (menu) => set({ contextMenu: menu }),
+    setExpandedCard: (id) => set({ expandedCardId: id }),
+    togglePlayerPanel: () => set((state) => ({ isPlayerPanelOpen: !state.isPlayerPanelOpen })),
+    toggleHandPanel: () => set((state) => ({ isHandPanelOpen: !state.isHandPanelOpen })),
+    toggleExportMenu: () => set((state) => ({ isExportMenuOpen: !state.isExportMenuOpen })),
+    openImportModal: () => set({ isImportModalOpen: true }),
+    closeImportModal: () => set({ isImportModalOpen: false }),
+    openCreateCardModal: () => set({ isCreateCardModalOpen: true }),
+    closeCreateCardModal: () => set({ isCreateCardModalOpen: false }),
+    openRoomSettings: () => set({ isRoomSettingsOpen: true }),
+    closeRoomSettings: () => set({ isRoomSettingsOpen: false }),
+    openDrawModal: () => set((state) => ({ isDrawModalOpen: state.drawOptions.length > 0 })),
+    closeDrawModal: () => set({ isDrawModalOpen: false }),
+    openEndConfirm: () => set({ isEndCoCreationConfirmOpen: true }),
+    closeEndConfirm: () => set({ isEndCoCreationConfirmOpen: false }),
+
+    addToast: (message, type = 'info') => {
+      const id = nanoid()
+      set((state) => ({ toasts: [...state.toasts, { id, message, type }] }))
+      window.setTimeout(() => get().removeToast(id), 3500)
+    },
+
+    removeToast: (id) => {
+      set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) }))
+    },
+  }
+})

@@ -1,20 +1,24 @@
 import React, { useState } from 'react'
 import { useStore } from '@/store/useStore'
 import { Modal } from './Modal'
+import { safeJsonParse } from '@dhgc/shared'
 import { Upload, AlertCircle } from 'lucide-react'
 
 export function ImportModal() {
-  const { isImportModalOpen, closeImportModal, addToast } = useStore()
+  const { isImportModalOpen, closeImportModal, importPack, addToast } = useStore()
   const [dragOver, setDragOver] = useState(false)
 
-  function handleFile(file: File) {
+  async function handleFile(file: File) {
     if (!file.name.endsWith('.dhpack.json') && !file.name.endsWith('.json')) {
       addToast('请选择 .dhpack.json 或 .json 文件', 'error')
       return
     }
-    // TODO: Wire to backend once packages/shared schema is ready
-    addToast(`已解析文件：${file.name}（后端接入后生效）`, 'info')
-    closeImportModal()
+    try {
+      const text = await file.text()
+      importPack(safeJsonParse(text))
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : '文件解析失败', 'error')
+    }
   }
 
   return (
@@ -31,7 +35,7 @@ export function ImportModal() {
         onDrop={e => {
           e.preventDefault(); setDragOver(false)
           const file = e.dataTransfer.files[0]
-          if (file) handleFile(file)
+          if (file) void handleFile(file)
         }}
         style={{
           border: `2px dashed ${dragOver ? 'var(--accent-violet)' : 'var(--border-default)'}`,
@@ -53,13 +57,13 @@ export function ImportModal() {
           type="file"
           accept=".json,.dhpack.json"
           style={{ display: 'none' }}
-          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) void handleFile(f) }}
         />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderRadius: 'var(--radius-sm)', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', marginBottom: 20 }}>
         <AlertCircle size={13} color="var(--accent-amber)" />
-        <span style={{ fontSize: 12, color: 'var(--accent-amber)' }}>导入功能需要后端接入后完整生效（当前为演示模式）</span>
+        <span style={{ fontSize: 12, color: 'var(--accent-amber)' }}>导入后会立即写入当前房间牌堆，建议先确认卡包格式正确。</span>
       </div>
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

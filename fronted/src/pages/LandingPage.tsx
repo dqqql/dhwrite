@@ -7,27 +7,31 @@ interface LandingPageProps {
 }
 
 export function LandingPage({ onEnterRoom }: LandingPageProps) {
-  const { initRoom, addToast } = useStore()
+  const { createRoom, joinRoom, isEnteringRoom, addToast } = useStore()
   const [tab, setTab] = useState<'create' | 'join'>('create')
   const [roomName, setRoomName] = useState('')
   const [nickname, setNickname] = useState('')
   const [inviteCode, setInviteCode] = useState('')
 
-  function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!nickname.trim()) { addToast('请输入昵称', 'error'); return }
-    initRoom()
-    onEnterRoom()
+    const entered = await createRoom({
+      nickname,
+      roomName,
+    })
+    if (entered) onEnterRoom()
   }
 
-  function handleJoin(e: React.FormEvent) {
+  async function handleJoin(e: React.FormEvent) {
     e.preventDefault()
     if (!nickname.trim()) { addToast('请输入昵称', 'error'); return }
     if (!inviteCode.trim()) { addToast('请输入邀请码', 'error'); return }
-    // TODO: Validate invite code with backend
-    initRoom()
-    addToast('以演示模式加入房间（后端接入后将验证邀请码）', 'info')
-    onEnterRoom()
+    const entered = await joinRoom({
+      inviteCode,
+      nickname,
+    })
+    if (entered) onEnterRoom()
   }
 
   return (
@@ -104,6 +108,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
                   onChange={e => setRoomName(e.target.value)}
                   placeholder="德利安之墓 · 团前准备"
                   maxLength={40}
+                  disabled={isEnteringRoom}
                 />
               </div>
               <div style={{ marginBottom: 18 }}>
@@ -114,6 +119,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
                   onChange={e => setNickname(e.target.value)}
                   placeholder="输入你的昵称…"
                   maxLength={20}
+                  disabled={isEnteringRoom}
                   required
                 />
               </div>
@@ -129,8 +135,8 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
                 <span>房间仅临时保存 <strong>3 天</strong>，到期自动删除。请及时导出备份。</span>
               </div>
 
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                <Plus size={15} /> 创建房间并进入
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={isEnteringRoom}>
+                <Plus size={15} /> {isEnteringRoom ? '连接中…' : '创建房间并进入'}
               </button>
             </form>
           ) : (
@@ -144,6 +150,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
                   placeholder="输入 6 位邀请码…"
                   maxLength={6}
                   style={{ letterSpacing: '4px', fontSize: 18, fontWeight: 700, fontFamily: 'monospace', textAlign: 'center' }}
+                  disabled={isEnteringRoom}
                   required
                 />
               </div>
@@ -155,11 +162,12 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
                   onChange={e => setNickname(e.target.value)}
                   placeholder="输入你的昵称…"
                   maxLength={20}
+                  disabled={isEnteringRoom}
                   required
                 />
               </div>
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                <LogIn size={15} /> 加入房间
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={isEnteringRoom}>
+                <LogIn size={15} /> {isEnteringRoom ? '连接中…' : '加入房间'}
               </button>
             </form>
           )}
@@ -167,7 +175,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
 
         {/* Footer */}
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: 'var(--text-muted)' }}>
-          基于《匕首之心》TTRPG · 当前为演示模式
+          基于《匕首之心》TTRPG · 当前为前后端联调原型
         </div>
       </div>
     </div>

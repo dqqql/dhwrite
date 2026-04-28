@@ -1,5 +1,6 @@
 import React from 'react'
 import { useStore } from '@/store/useStore'
+import { fetchDhRoomBackup } from '@/lib/realtime'
 import {
   Settings, Download, Upload, Play, StopCircle,
   Clock, Hash, ChevronDown, Layers, FileJson, FileText,
@@ -14,24 +15,23 @@ export function TopBar() {
 
   const isHost = room?.host_player_id === currentPlayerId
   const isCoCreation = room?.mode === 'co-creation'
+  const modeLabel = room?.mode === 'co-creation' ? '共创模式' : room?.mode === 'normal' ? '普通模式' : '自由模式'
 
-  function exportDhRoom() {
+  async function exportDhRoom() {
     if (!room) return
-    // TODO: Build full dhroom.json from backend snapshot; local mock below
-    const data = {
-      format: 'dhroom', version: 1,
-      room: { name: room.room_name, invite_code: room.invite_code, created_at: new Date().toISOString(), expires_at: room.expires_at },
-      session: { mode: room.mode, current_host: room.players.find(p => p.id === room.host_player_id)?.nickname },
-      map: { cards: room.map_cards, connections: room.connections, annotations: room.annotations },
-      players: room.players,
-      exported_at: new Date().toISOString(),
+    try {
+      const blob = await fetchDhRoomBackup(room.invite_code)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${room.room_name}.dhroom.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      addToast('房间备份已导出！', 'success')
+      toggleExportMenu()
+    } catch (error) {
+      addToast(error instanceof Error ? error.message : '导出房间备份失败', 'error')
     }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = `${room.room_name}.dhroom.json`; a.click()
-    URL.revokeObjectURL(url)
-    addToast('房间备份已导出！', 'success')
-    toggleExportMenu()
   }
 
   function exportMarkdown() {
@@ -106,7 +106,7 @@ export function TopBar() {
       {/* Mode badge */}
       <div className={`mode-badge mode-badge--${isCoCreation ? 'cocreation' : 'free'}`}>
         <Layers size={11} />
-        {isCoCreation ? '共创模式' : '自由模式'}
+        {modeLabel}
       </div>
 
       {/* Deck remaining */}
@@ -118,7 +118,7 @@ export function TopBar() {
           fontSize: 11, color: 'var(--text-secondary)',
         }}>
           <span style={{ color: 'var(--text-muted)' }}>牌堆</span>
-          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{room.deck_remaining}</span>
+          <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{room.deck.length}</span>
         </div>
       )}
 

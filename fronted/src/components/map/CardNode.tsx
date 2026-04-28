@@ -13,8 +13,8 @@ interface CardNodeProps {
 
 export function DhCardNode({ card, canvasScale }: CardNodeProps) {
   const {
-    room, currentPlayerId, toggleExpandCard, resizeCard,
-    lockCard, unlockCard, moveCard, setContextMenu,
+    room, currentPlayerId, toggleExpandCard, resizeCard, commitResizeCard,
+    lockCard, unlockCard, moveCard, commitMoveCard, setContextMenu,
   } = useStore()
   const cfg = CARD_TYPE_CONFIG[card.type]
   const currentPlayerName = room?.players.find(p => p.id === currentPlayerId)?.nickname
@@ -36,6 +36,12 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
       moveCard(card.id, dragStart.current.ox + dx, dragStart.current.oy + dy)
     }
     const onUp = () => {
+      if (dragStart.current) {
+        const latestCard = useStore.getState().room?.map_cards.find((item) => item.id === card.id)
+        if (latestCard) {
+          commitMoveCard(card.id, latestCard.x, latestCard.y)
+        }
+      }
       unlockCard(card.id)
       dragStart.current = null
       window.removeEventListener('mousemove', onMove)
@@ -43,7 +49,7 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-  }, [card.id, card.x, card.y, canvasScale, isLocked, lockCard, unlockCard, moveCard])
+  }, [card.id, card.x, card.y, canvasScale, commitMoveCard, isLocked, lockCard, unlockCard, moveCard])
 
   const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
     if (isLocked) return
@@ -61,6 +67,10 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
     }
 
     const onUp = () => {
+      const latestCard = useStore.getState().room?.map_cards.find((item) => item.id === card.id)
+      if (latestCard) {
+        commitResizeCard(card.id, latestCard.grid_scale)
+      }
       unlockCard(card.id)
       resizeStart.current = null
       window.removeEventListener('mousemove', onMove)
@@ -71,7 +81,7 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
     window.addEventListener('mouseup', onUp)
   }, [
     card.id, card.grid_cols, card.grid_rows, card.grid_scale,
-    canvasScale, isLocked, lockCard, resizeCard, unlockCard,
+    canvasScale, commitResizeCard, isLocked, lockCard, resizeCard, unlockCard,
   ])
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
