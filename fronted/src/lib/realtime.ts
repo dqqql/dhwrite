@@ -1,6 +1,11 @@
-import { safeJsonParse, type CreateRoomRequest, type JoinRoomRequest, type RoomJoinResponse, type ServerMessage } from '@dhgc/shared'
+import { safeJsonParse, type ClientMessage, type CreateRoomRequest, type JoinRoomRequest, type RoomJoinResponse, type ServerMessage } from '@dhgc/shared'
 
 const DEFAULT_API_BASE = 'http://127.0.0.1:8787'
+const MAX_BACKOFF_MS = 30_000
+const BASE_BACKOFF_MS = 1_000
+const MAX_RECONNECT_ATTEMPTS = 15
+
+export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
 export function getRealtimeApiBase() {
   return (import.meta.env.VITE_REALTIME_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, '')
@@ -28,39 +33,201 @@ export async function fetchDhRoomBackup(inviteCode: string) {
   return response.blob()
 }
 
-interface RoomSocketHandlers {
+export interface RoomSocketHandlers {
   onClose?: () => void
   onError?: (error: Error) => void
   onMessage: (message: ServerMessage) => void
   onOpen?: () => void
+  onStatusChange?: (status: ConnectionState) => void
 }
 
-export function openRoomSocket(websocketUrl: string, handlers: RoomSocketHandlers) {
-  const socket = new WebSocket(websocketUrl)
+export class RoomSocketConnection {
+  private socket: WebSocket | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private reconnectAttempts = 0
+  private intentionalClose = false
+  private disposed = false
+  private websocketUrl: string
+  private handlers: RoomSocketHandlers
 
-  socket.addEventListener('open', () => {
-    handlers.onOpen?.()
-  })
+  constructor(websocketUrl: string, handlers: RoomSocketHandlers) {
+    this.websocketUrl = websocketUrl
+    this.handlers = handlers
+    this.setupNetworkListeners()
+    this.setupUnloadListener()
+  }
 
-  socket.addEventListener('close', () => {
-    handlers.onClose?.()
-  })
-
-  socket.addEventListener('error', () => {
-    handlers.onError?.(new Error('WebSocket connection error'))
-  })
-
-  socket.addEventListener('message', (event) => {
-    try {
-      const data = typeof event.data === 'string' ? event.data : String(event.data)
-      const message = safeJsonParse(data) as ServerMessage
-      handlers.onMessage(message)
-    } catch (error) {
-      handlers.onError?.(error instanceof Error ? error : new Error(String(error)))
+  connect(): void {
+    if (this.disposed || this.intentionalClose) return
+    if (this.socket && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) return
+    if (!navigator.onLine) {
+      this.handlers.onStatusChange?.('reconnecting')
+      return
     }
-  })
 
-  return socket
+    this.handlers.onStatusChange?.('connecting')
+
+    try {
+      this.socket = new WebSocket(this.websocketUrl)
+    } catch {
+      this.handlers.onError?.(new Error('Failed to create WebSocket'))
+      this.scheduleReconnect()
+      return
+    }
+
+    this.socket.addEventListener('open', () => {
+      if (this.disposed) return
+      this.reconnectAttempts = 0
+      this.clearReconnectTimer()
+      this.handlers.onOpen?.()
+    })
+
+    this.socket.addEventListener('close', (event) => {
+      if (this.disposed) return
+
+      const wasIntentional = this.intentionalClose
+      this.socket = null
+
+      if (!wasIntentional) {
+        // If close happens immediately (auth failure etc), count it
+        if (event.code === 1006) {
+          this.handlers.onError?.(new Error('连接被服务端关闭，可能是认证失败'))
+        }
+        this.scheduleReconnect()
+      } else {
+        this.handlers.onStatusChange?.('idle')
+      }
+
+      this.handlers.onClose?.()
+    })
+
+    this.socket.addEventListener('error', () => {
+      if (this.disposed) return
+      // close event will fire after error
+    })
+
+    this.socket.addEventListener('message', (event) => {
+      if (this.disposed) return
+      try {
+        const data = typeof event.data === 'string' ? event.data : String(event.data)
+        const message = safeJsonParse(data) as ServerMessage
+        this.handlers.onMessage(message)
+      } catch (error) {
+        this.handlers.onError?.(error instanceof Error ? error : new Error(String(error)))
+      }
+    })
+  }
+
+  send(message: ClientMessage): boolean {
+    if (this.disposed) return false
+    if (this.socket?.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify(message))
+      return true
+    }
+    return false
+  }
+
+  /** Graceful close: stops reconnect, closes socket. Use when leaving room. */
+  disconnect(): void {
+    this.intentionalClose = true
+    this.clearReconnectTimer()
+    if (this.socket && this.socket.readyState < WebSocket.CLOSING) {
+      this.socket.close()
+    }
+    this.socket = null
+  }
+
+  /** User-triggered reconnect: resets backoff and reconnects immediately. */
+  manualReconnect(): void {
+    this.intentionalClose = false
+    this.reconnectAttempts = 0
+    this.clearReconnectTimer()
+    if (this.socket && this.socket.readyState < WebSocket.CLOSING) {
+      this.socket.close()
+    }
+    this.socket = null
+    this.connect()
+  }
+
+  dispose(): void {
+    this.disposed = true
+    this.intentionalClose = true
+    this.clearReconnectTimer()
+    this.removeNetworkListeners()
+    this.removeUnloadListener()
+    if (this.socket && this.socket.readyState < WebSocket.CLOSING) {
+      this.socket.close()
+    }
+    this.socket = null
+  }
+
+  get isConnected(): boolean {
+    return this.socket?.readyState === WebSocket.OPEN
+  }
+
+  // --- Private ---
+
+  private scheduleReconnect(): void {
+    if (this.disposed || this.intentionalClose) return
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      this.handlers.onStatusChange?.('error')
+      return
+    }
+    if (!navigator.onLine) {
+      this.handlers.onStatusChange?.('reconnecting')
+      return
+    }
+
+    const delay = Math.min(BASE_BACKOFF_MS * Math.pow(2, this.reconnectAttempts), MAX_BACKOFF_MS)
+    this.reconnectAttempts++
+    this.handlers.onStatusChange?.('reconnecting')
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.connect()
+    }, delay)
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer != null) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+  }
+
+  private setupNetworkListeners(): void {
+    window.addEventListener('online', this.onNetworkOnline)
+    window.addEventListener('offline', this.onNetworkOffline)
+  }
+
+  private removeNetworkListeners(): void {
+    window.removeEventListener('online', this.onNetworkOnline)
+    window.removeEventListener('offline', this.onNetworkOffline)
+  }
+
+  private setupUnloadListener(): void {
+    window.addEventListener('beforeunload', this.onBeforeUnload)
+  }
+
+  private removeUnloadListener(): void {
+    window.removeEventListener('beforeunload', this.onBeforeUnload)
+  }
+
+  private onNetworkOnline = (): void => {
+    if (this.disposed || this.intentionalClose) return
+    if (this.socket?.readyState === WebSocket.OPEN) return
+    this.reconnectAttempts = 0
+    this.clearReconnectTimer()
+    this.connect()
+  }
+
+  private onNetworkOffline = (): void => {
+    this.clearReconnectTimer()
+    this.handlers.onStatusChange?.('reconnecting')
+  }
+
+  private onBeforeUnload = (): void => {
+    this.dispose()
+  }
 }
 
 async function requestJson<T>(pathname: string, init?: RequestInit) {

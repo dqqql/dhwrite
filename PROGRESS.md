@@ -35,12 +35,21 @@ npm run build
 npm run lint
 ```
 
+端到端 smoke test 已通过（31/31）：
+
+```powershell
+cd d:\Dql\Desktop\dhgc
+node smoke-test.mjs
+```
+
+覆盖链路：创建房间 → 加入房间 → WebSocket 双端连接 → 开始共创（发牌 5 张） → 抽牌三选一 → 打牌到地图 → 锁定+移动卡牌 → 缩放卡牌 → 结束回合 → 强制跳过 → 创建自定义卡 → 导出 .dhroom.json → 结束共创（回收手牌） → 重连
+
 已知问题：
 
 - 部分中文文案仍存在编码乱码，需要后续统一修复。
 - 视觉仍需根据最终 Figma 稿继续细修。
 - 当前画布实现是自建 DOM 网格，不是技术方案中提到的 React Flow，后续是否迁移需要再评估。
-- 连接层目前还没有自动重连、断线恢复提示细化和 session 持久化。
+- ~~连接层目前还没有自动重连、断线恢复提示细化和 session 持久化。~~ 已完成：自动重连（指数退避，max 30s，最多 15 次）、TopBar 连接状态指示器（重连中/已断开+手动重连按钮）、RoomPage 重连横幅、online/offline 事件监听、beforeunload 清理。
 - 卡片拖拽/缩放现在采用“前端本地预览 + WebSocket commit”的方式，仍需做多人实测验证同步手感。
 - 连接线、标注、编辑等功能虽然已有协议与 store action，但还缺少完整的端到端交互验证。
 
@@ -86,8 +95,8 @@ npm run realtime:typecheck
 
 - D1 目前只有 schema，实际持久化暂时使用 Durable Object storage 快照。
 - session secret 仍是开发默认值，部署前必须替换。
-- 尚未接前端。
-- 缺少自动化测试脚本，当前主要依靠 smoke test 和 typecheck。
+- ~~尚未接前端。~~ 已通过 smoke test 验证前后端联调全部核心链路（31/31 通过）。
+- 缺少自动化测试脚本（CI 级别），当前主要依靠 smoke test 和 typecheck。
 - WebSocket 协议已有 TypeScript 类型，但还没有运行时完整 schema 校验。
 
 ## 当前联调入口

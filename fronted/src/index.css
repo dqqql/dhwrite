@@ -480,6 +480,12 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.6; }
 .flex-center { display: flex; align-items: center; justify-content: center; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
+/* ── Connection indicator pulse ─────────────────────────────────── */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
 /* ── Draw 3-pick-1 animation ───────────────────────────────────── */
 .draw-card-enter {
   animation: drawCardIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;

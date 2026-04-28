@@ -2,10 +2,10 @@ import { create } from 'zustand'
 import { nanoid } from 'nanoid'
 import { assertDhPack, type ClientMessage, type DhCard, type RoomSession, type RoomState } from '@dhgc/shared'
 import type { Annotation, Connection, DrawOption, Toast } from '@/types'
-import { createRoomRequest, joinRoomRequest, openRoomSocket } from '@/lib/realtime'
+import { createRoomRequest, joinRoomRequest, RoomSocketConnection, type ConnectionState } from '@/lib/realtime'
 import { getCardGridSize, snapToGrid } from '@/utils/grid'
 
-type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'error'
+type ConnectionStatus = ConnectionState
 
 interface UIState {
   isPlayerPanelOpen: boolean
@@ -31,6 +31,9 @@ interface AppStore extends UIState {
 
   createRoom: (input: { nickname: string; roomName: string; selectedPackIds?: string[] }) => Promise<boolean>
   joinRoom: (input: { inviteCode: string; nickname: string }) => Promise<boolean>
+
+  manualReconnect: () => void
+  leaveRoom: () => void
 
   startCoCreation: () => void
   endCoCreation: () => void
@@ -81,8 +84,7 @@ interface AppStore extends UIState {
   removeToast: (id: string) => void
 }
 
-let activeSocket: WebSocket | null = null
-let socketGeneration = 0
+let activeConnection: RoomSocketConnection | null = null
 
 function preserveTransientRoomState(previous: RoomState | null, incoming: RoomState): RoomState {
   if (!previous) return incoming
@@ -103,30 +105,32 @@ export const useStore = create<AppStore>((set, get) => {
     set((state) => ({ room: preserveTransientRoomState(state.room, room) }))
   }
 
-  const disconnectSocket = () => {
-    socketGeneration += 1
-    if (activeSocket && activeSocket.readyState < WebSocket.CLOSING) {
-      activeSocket.close()
+  const disconnectConnection = () => {
+    if (activeConnection) {
+      activeConnection.disconnect()
+      activeConnection = null
     }
-    activeSocket = null
   }
 
   const sendMessage = (message: ClientMessage) => {
-    if (!activeSocket || activeSocket.readyState !== WebSocket.OPEN) {
-      get().addToast('实时连接尚未建立，请稍后重试。', 'error')
+    const conn = activeConnection
+    if (!conn || !conn.isConnected) {
+      const status = get().connectionStatus
+      if (status === 'error' || status === 'idle') {
+        get().addToast('实时连接已断开，请手动重新连接。', 'error')
+      }
       return false
     }
 
-    activeSocket.send(JSON.stringify({
+    conn.send({
       ...message,
       requestId: message.requestId ?? nanoid(),
-    }))
+    })
     return true
   }
 
   const connectSession = async (session: RoomSession) => {
-    disconnectSocket()
-    const generation = socketGeneration
+    disconnectConnection()
 
     set({
       session,
@@ -150,23 +154,27 @@ export const useStore = create<AppStore>((set, get) => {
         reject(error)
       }
 
-      const socket = openRoomSocket(session.websocket_url, {
+      const connection = new RoomSocketConnection(session.websocket_url, {
         onClose: () => {
-          if (generation !== socketGeneration || activeSocket !== socket) return
-          activeSocket = null
-          set({ connectionStatus: receivedSnapshot ? 'error' : 'idle' })
-          if (receivedSnapshot) {
-            get().addToast('与房间的实时连接已断开。', 'warning')
-          } else {
+          if (activeConnection !== connection) return
+          // If snapshot was received, the disconnect is handled by reconnect logic
+          // Connection class updates status via onStatusChange
+          if (!receivedSnapshot) {
             finishReject(new Error('WebSocket closed before room snapshot arrived'))
           }
         },
         onError: (error) => {
-          if (generation !== socketGeneration || activeSocket !== socket) return
-          if (!receivedSnapshot) finishReject(error)
+          if (activeConnection !== connection) return
+          if (!receivedSnapshot) {
+            finishReject(error)
+          }
+        },
+        onStatusChange: (status) => {
+          if (activeConnection !== connection) return
+          set({ connectionStatus: status })
         },
         onMessage: (message) => {
-          if (generation !== socketGeneration || activeSocket !== socket) return
+          if (activeConnection !== connection) return
 
           switch (message.type) {
             case 'room.snapshot':
@@ -202,7 +210,8 @@ export const useStore = create<AppStore>((set, get) => {
         },
       })
 
-      activeSocket = socket
+      activeConnection = connection
+      connection.connect()
     })
   }
 
@@ -247,7 +256,7 @@ export const useStore = create<AppStore>((set, get) => {
         get().addToast(`房间已创建，邀请码 ${response.session.invite_code}`, 'success')
         return true
       } catch (error) {
-        disconnectSocket()
+        disconnectConnection()
         set({
           room: null,
           session: null,
@@ -286,7 +295,7 @@ export const useStore = create<AppStore>((set, get) => {
         get().addToast(`已加入房间 ${response.state.room_name}`, 'success')
         return true
       } catch (error) {
-        disconnectSocket()
+        disconnectConnection()
         set({
           room: null,
           session: null,
@@ -297,6 +306,31 @@ export const useStore = create<AppStore>((set, get) => {
       } finally {
         set({ isEnteringRoom: false })
       }
+    },
+
+    manualReconnect: () => {
+      const conn = activeConnection
+      if (!conn) {
+        get().addToast('当前没有可重连的房间会话。', 'error')
+        return
+      }
+      set({ connectionStatus: 'connecting' })
+      conn.manualReconnect()
+    },
+
+    leaveRoom: () => {
+      if (activeConnection) {
+        activeConnection.dispose()
+        activeConnection = null
+      }
+      set({
+        room: null,
+        session: null,
+        connectionStatus: 'idle',
+        isDrawModalOpen: false,
+        isEndCoCreationConfirmOpen: false,
+        drawOptions: [],
+      })
     },
 
     startCoCreation: () => {

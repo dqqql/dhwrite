@@ -4,18 +4,21 @@ import { fetchDhRoomBackup } from '@/lib/realtime'
 import {
   Settings, Download, Upload, Play, StopCircle,
   Clock, Hash, ChevronDown, Layers, FileJson, FileText,
+  Wifi, WifiOff,
 } from 'lucide-react'
 
 export function TopBar() {
   const {
-    room, currentPlayerId, isExportMenuOpen, toggleExportMenu,
+    room, currentPlayerId, connectionStatus, isExportMenuOpen, toggleExportMenu,
     openImportModal, openRoomSettings, startCoCreation, openEndConfirm,
-    addToast,
+    manualReconnect, addToast,
   } = useStore()
 
   const isHost = room?.host_player_id === currentPlayerId
   const isCoCreation = room?.mode === 'co-creation'
   const modeLabel = room?.mode === 'co-creation' ? '共创模式' : room?.mode === 'normal' ? '普通模式' : '自由模式'
+  const isDisconnected = connectionStatus === 'error' || (connectionStatus === 'idle' && room != null)
+  const isReconnecting = connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
 
   async function exportDhRoom() {
     if (!room) return
@@ -136,6 +139,49 @@ export function TopBar() {
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {/* Connection status */}
+      {isReconnecting && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '3px 8px', borderRadius: 99,
+          background: 'rgba(245,158,11,0.1)',
+          border: '1px solid rgba(245,158,11,0.2)',
+          fontSize: 11, color: 'var(--accent-amber)',
+        }}>
+          <Wifi size={11} style={{ animation: 'pulse 1.5s infinite' }} />
+          重连中…
+        </div>
+      )}
+
+      {isDisconnected && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '3px 8px', borderRadius: 99,
+          background: 'rgba(244,63,94,0.1)',
+          border: '1px solid rgba(244,63,94,0.2)',
+          fontSize: 11, color: 'var(--accent-rose)',
+        }}>
+          <WifiOff size={11} />
+          连接断开
+          <button
+            className="btn btn-sm"
+            style={{
+              marginLeft: 2,
+              padding: '2px 8px',
+              fontSize: 10,
+              background: 'var(--accent-rose)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 99,
+              cursor: 'pointer',
+            }}
+            onClick={(e) => { e.stopPropagation(); manualReconnect() }}
+          >
+            重连
+          </button>
+        </div>
+      )}
 
       {/* Host controls */}
       {isHost && (
