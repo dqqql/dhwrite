@@ -1,0 +1,867 @@
+import {
+  assertDhPack,
+  getCardGridSize,
+  safeJsonParse,
+  snapToGrid,
+  type ClientMessage,
+  type DhCard,
+  type DhPack,
+  type DhRoomBackup,
+  type MapCard,
+  type Player,
+  type RoomState,
+} from '../../../packages/shared/src/index'
+
+export interface Env {
+  ROOMS: DurableObjectNamespace
+  DHGC_DB?: D1Database
+  SESSION_SECRET: string
+}
+
+interface SessionPayload {
+  room_id: string
+  invite_code: string
+  player_id: string
+  nickname: string
+  exp: number
+}
+
+interface SocketSession {
+  playerId: string
+  nickname: string
+}
+
+const PLAYER_COLORS = ['#f43f5e', '#2563eb', '#f59e0b', '#10b981', '#a855f7', '#06b6d4']
+const ROOM_TTL_MS = 3 * 24 * 60 * 60 * 1000
+
+const OFFICIAL_DECK: Array<Omit<DhCard, 'id' | 'is_custom' | 'pack_id'>> = [
+  { type: 'Location', title: 'Mirrorfall Keep', content: 'A ruined fortress whose walls reflect scenes from possible futures.', style: '#22c55e' },
+  { type: 'Location', title: 'Ash Orchard', content: 'Blackened fruit trees grow around a buried pact stone.', style: '#22c55e' },
+  { type: 'Location', title: 'The Low Harbor', content: 'A hidden port used by smugglers, pilgrims, and things from below.', style: '#22c55e' },
+  { type: 'Location', title: 'Bellwake Abbey', content: 'Every bell tolls at a different hour, and none agree with the sun.', style: '#22c55e' },
+  { type: 'NPC', title: 'The Veiled Regent', content: 'A ruler who governs through masks, proxies, and ceremonial doubles.', style: '#2563eb' },
+  { type: 'NPC', title: 'Captain Red Thread', content: 'A charming privateer who claims every debt can be tied into destiny.', style: '#2563eb' },
+  { type: 'NPC', title: 'The Last Glasswright', content: 'An artisan who can repair memories if paid with something honest.', style: '#2563eb' },
+  { type: 'NPC', title: 'Iron-Eye Auditor', content: 'A relentless judge tracking a missing royal ledger.', style: '#2563eb' },
+  { type: 'Feature', title: 'Moonless Festival', content: 'A yearly celebration when no shadow belongs to its owner.', style: '#a855f7' },
+  { type: 'Feature', title: 'Blood-Oath Charter', content: 'A legal document that punishes betrayal with mirrored wounds.', style: '#a855f7' },
+  { type: 'Feature', title: 'Starfall Prophecy', content: 'A prediction that the map must be redrawn after a falling star.', style: '#a855f7' },
+  { type: 'Feature', title: 'The Hollow Choir', content: 'A song that only the guilty can hear clearly.', style: '#a855f7' },
+]
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    if (request.method === 'OPTIONS') return emptyCors()
+
+    const url = new URL(request.url)
+    try {
+      if (url.pathname === '/api/health') {
+        return json({ ok: true, service: 'dhgc-realtime', time: new Date().toISOString() })
+      }
+
+      if (url.pathname === '/api/rooms' && request.method === 'POST') {
+        return createRoom(request, env)
+      }
+
+      if (url.pathname === '/api/rooms/join' && request.method === 'POST') {
+        return joinRoom(request, env)
+      }
+
+      const exportMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]{6})\/export\/dhroom$/i)
+      if (exportMatch && request.method === 'GET') {
+        const inviteCode = normaliseInvite(exportMatch[1])
+        const stub = roomStub(env, inviteCode)
+        const response = await stub.fetch(internalRequest('/internal/export/dhroom'))
+        return withCors(response)
+      }
+
+      const wsMatch = url.pathname.match(/^\/api\/rooms\/([A-Z0-9]{6})\/ws$/i)
+      if (wsMatch && request.headers.get('Upgrade') === 'websocket') {
+        const inviteCode = normaliseInvite(wsMatch[1])
+        const stub = roomStub(env, inviteCode)
+        return stub.fetch(request)
+      }
+
+      return json({ error: 'not_found' }, { status: 404 })
+    } catch (error) {
+      return json({ error: 'internal_error', message: messageFrom(error) }, { status: 500 })
+    }
+  },
+}
+
+async function createRoom(request: Request, env: Env): Promise<Response> {
+  const body = await request.json() as { room_name?: string; nickname?: string; selected_pack_ids?: string[] }
+  const roomName = cleanText(body.room_name, 'Untitled Room', 60)
+  const nickname = cleanText(body.nickname, '', 24)
+  if (!nickname) return json({ error: 'nickname_required' }, { status: 400 })
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const inviteCode = generateInviteCode()
+    const playerId = id('player')
+    const stub = roomStub(env, inviteCode)
+    const createResponse = await stub.fetch(internalRequest('/internal/create', {
+      method: 'POST',
+      body: JSON.stringify({ roomName, inviteCode, playerId, nickname, selectedPackIds: body.selected_pack_ids ?? [] }),
+    }))
+
+    if (createResponse.status === 409) continue
+    if (!createResponse.ok) return withCors(createResponse)
+
+    const payload = await createResponse.json() as { state: RoomState; player: Player }
+    return roomSessionResponse(request, env, payload.state, payload.player)
+  }
+
+  return json({ error: 'invite_collision' }, { status: 500 })
+}
+
+async function joinRoom(request: Request, env: Env): Promise<Response> {
+  const body = await request.json() as { invite_code?: string; nickname?: string }
+  const inviteCode = normaliseInvite(body.invite_code ?? '')
+  const nickname = cleanText(body.nickname, '', 24)
+  if (!inviteCode) return json({ error: 'invite_code_required' }, { status: 400 })
+  if (!nickname) return json({ error: 'nickname_required' }, { status: 400 })
+
+  const stub = roomStub(env, inviteCode)
+  const joinResponse = await stub.fetch(internalRequest('/internal/join', {
+    method: 'POST',
+    body: JSON.stringify({ nickname, playerId: id('player') }),
+  }))
+  if (!joinResponse.ok) return withCors(joinResponse)
+
+  const payload = await joinResponse.json() as { state: RoomState; player: Player }
+  return roomSessionResponse(request, env, payload.state, payload.player)
+}
+
+async function roomSessionResponse(request: Request, env: Env, state: RoomState, player: Player): Promise<Response> {
+  const token = await signSession(env.SESSION_SECRET, {
+    room_id: state.room_id,
+    invite_code: state.invite_code,
+    player_id: player.id,
+    nickname: player.nickname,
+    exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60,
+  })
+
+  return json({
+    session: {
+      room_id: state.room_id,
+      invite_code: state.invite_code,
+      player_id: player.id,
+      nickname: player.nickname,
+      token,
+      websocket_url: buildWebSocketUrl(request.url, state.invite_code, token),
+    },
+    state,
+  })
+}
+
+export class RoomDurableObject {
+  private room: RoomState | null = null
+  private sockets = new Map<WebSocket, SocketSession>()
+  private pendingDraws = new Map<string, DhCard[]>()
+
+  constructor(private readonly ctx: DurableObjectState, private readonly env: Env) {}
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+
+    if (url.pathname === '/internal/create' && request.method === 'POST') return this.create(request)
+    if (url.pathname === '/internal/join' && request.method === 'POST') return this.join(request)
+    if (url.pathname === '/internal/export/dhroom' && request.method === 'GET') return this.exportDhRoom()
+
+    if (request.headers.get('Upgrade') === 'websocket') return this.connectWebSocket(request)
+
+    return json({ error: 'not_found' }, { status: 404 })
+  }
+
+  private async create(request: Request): Promise<Response> {
+    await this.load()
+    if (this.room) return json({ error: 'room_exists' }, { status: 409 })
+
+    const body = await request.json() as {
+      roomName: string
+      inviteCode: string
+      playerId: string
+      nickname: string
+      selectedPackIds: string[]
+    }
+
+    const now = new Date()
+    const host = makePlayer(body.playerId, body.nickname, PLAYER_COLORS[0], true, now)
+    const deck = shuffle(OFFICIAL_DECK.map(card => ({
+      ...card,
+      id: id('card'),
+      is_custom: false,
+      pack_id: 'official-core',
+    })))
+
+    this.room = {
+      room_id: body.inviteCode,
+      room_name: body.roomName,
+      invite_code: body.inviteCode,
+      created_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + ROOM_TTL_MS).toISOString(),
+      mode: 'free',
+      host_player_id: host.id,
+      current_turn_player_id: null,
+      turn_order: [host.id],
+      players: [host],
+      hands: { [host.id]: [] },
+      deck,
+      map_cards: [],
+      connections: [],
+      annotations: [],
+      selected_pack_ids: body.selectedPackIds.length ? body.selectedPackIds : ['official-core'],
+      drawn_this_turn: {},
+      snapshot_version: 0,
+      updated_at: now.toISOString(),
+    }
+
+    await this.save()
+    return json({ state: this.publicState(), player: host })
+  }
+
+  private async join(request: Request): Promise<Response> {
+    const room = await this.mustLoad()
+    if (Date.parse(room.expires_at) <= Date.now()) {
+      return json({ error: 'room_expired' }, { status: 410 })
+    }
+
+    const body = await request.json() as { nickname: string; playerId: string }
+    const now = new Date()
+    const color = PLAYER_COLORS[room.players.length % PLAYER_COLORS.length]
+    const player = makePlayer(body.playerId, cleanText(body.nickname, 'Player', 24), color, false, now)
+
+    room.players.push(player)
+    room.turn_order.push(player.id)
+    room.hands[player.id] = []
+    await this.commit('player.joined')
+
+    return json({ state: this.publicState(), player })
+  }
+
+  private async connectWebSocket(request: Request): Promise<Response> {
+    const room = await this.mustLoad()
+    const url = new URL(request.url)
+    const token = url.searchParams.get('token') ?? ''
+    const session = await verifySession(this.env.SESSION_SECRET, token)
+    if (!session || session.invite_code !== room.invite_code) {
+      return new Response('Invalid session token', { status: 401 })
+    }
+
+    const player = room.players.find(item => item.id === session.player_id)
+    if (!player) return new Response('Unknown player', { status: 403 })
+
+    const pair = new WebSocketPair()
+    const [client, server] = Object.values(pair) as [WebSocket, WebSocket]
+    server.accept()
+
+    this.sockets.set(server, { playerId: player.id, nickname: player.nickname })
+    player.is_online = true
+    player.last_seen_at = new Date().toISOString()
+    room.updated_at = new Date().toISOString()
+    room.snapshot_version += 1
+    await this.save()
+
+    server.send(JSON.stringify({
+      type: 'room.snapshot',
+      payload: { state: this.publicState(), you: { player_id: player.id } },
+    }))
+    this.broadcast({ type: 'room.updated', payload: { state: this.publicState(), reason: 'player.online' } })
+
+    server.addEventListener('message', event => {
+      void this.handleMessage(server, event.data).catch(error => {
+        this.sendError(server, undefined, 'handler_error', messageFrom(error))
+      })
+    })
+
+    server.addEventListener('close', () => {
+      void this.disconnect(server)
+    })
+
+    server.addEventListener('error', () => {
+      void this.disconnect(server)
+    })
+
+    return new Response(null, { status: 101, webSocket: client })
+  }
+
+  private async handleMessage(socket: WebSocket, data: string | ArrayBuffer): Promise<void> {
+    const session = this.sockets.get(socket)
+    if (!session) return
+    const message = typeof data === 'string' ? safeJsonParse(data) as ClientMessage : null
+    if (!message || typeof message.type !== 'string') {
+      this.sendError(socket, undefined, 'invalid_message', 'Message must be JSON with a type')
+      return
+    }
+
+    try {
+      await this.applyMessage(session, message, socket)
+      if (message.requestId) this.send(socket, { type: 'ack', requestId: message.requestId, payload: { ok: true } })
+    } catch (error) {
+      this.sendError(socket, message.requestId, 'rejected', messageFrom(error))
+    }
+  }
+
+  private async applyMessage(session: SocketSession, message: ClientMessage, socket: WebSocket): Promise<void> {
+    const room = await this.mustLoad()
+    const player = this.requirePlayer(session.playerId)
+
+    switch (message.type) {
+      case 'ping':
+        this.send(socket, { type: 'pong', requestId: message.requestId, payload: { server_time: new Date().toISOString() } })
+        return
+
+      case 'room.startCoCreation':
+        this.requireHost(player)
+        this.startCoCreation()
+        await this.commit('room.startCoCreation')
+        return
+
+      case 'room.endCoCreation':
+        this.requireHost(player)
+        this.endCoCreation()
+        await this.commit('room.endCoCreation')
+        return
+
+      case 'turn.end':
+        this.requireCoCreation()
+        this.advanceTurn()
+        await this.commit('turn.end')
+        return
+
+      case 'turn.forceSkip':
+        this.requireHost(player)
+        this.advanceTurn(message.payload.playerId)
+        await this.commit('turn.forceSkip')
+        return
+
+      case 'card.draw':
+        this.requireCurrentTurn(player)
+        if (room.drawn_this_turn[player.id]) throw new Error('Already drew this turn')
+        this.pendingDraws.set(player.id, room.deck.slice(0, 3))
+        this.send(socket, { type: 'draw.options', requestId: message.requestId, payload: { cards: room.deck.slice(0, 3) } })
+        return
+
+      case 'card.draw.confirm': {
+        this.requireCurrentTurn(player)
+        const options = this.pendingDraws.get(player.id) ?? []
+        const selected = options.find(card => card.id === message.payload.cardId)
+        if (!selected) throw new Error('Selected card is not in draw options')
+        room.deck = room.deck.filter(card => card.id !== selected.id)
+        room.hands[player.id] = [...(room.hands[player.id] ?? []), selected]
+        room.drawn_this_turn[player.id] = true
+        this.pendingDraws.delete(player.id)
+        await this.commit('card.draw.confirm')
+        return
+      }
+
+      case 'card.create': {
+        const card: DhCard = { ...message.payload.card, id: id('card'), is_custom: true }
+        room.hands[player.id] = [...(room.hands[player.id] ?? []), card]
+        await this.commit('card.create')
+        return
+      }
+
+      case 'card.play':
+        this.requireCurrentTurn(player)
+        this.playCard(player, message.payload.cardId, message.payload.x, message.payload.y)
+        await this.commit('card.play')
+        return
+
+      case 'card.lock':
+        this.lockCard(player, message.payload.cardId)
+        await this.commit('card.lock')
+        return
+
+      case 'card.unlock':
+        this.unlockCard(player, message.payload.cardId)
+        await this.commit('card.unlock')
+        return
+
+      case 'card.move.commit':
+        this.requireUnlockedOrOwner(player, message.payload.cardId)
+        this.updateMapCard(message.payload.cardId, { x: snapToGrid(message.payload.x), y: snapToGrid(message.payload.y) })
+        this.unlockCard(player, message.payload.cardId)
+        await this.commit('card.move.commit')
+        return
+
+      case 'card.resize.commit': {
+        this.requireUnlockedOrOwner(player, message.payload.cardId)
+        const card = this.requireMapCard(message.payload.cardId)
+        this.updateMapCard(card.id, getCardGridSize(card.type, message.payload.gridScale))
+        await this.commit('card.resize.commit')
+        return
+      }
+
+      case 'card.edit':
+        this.requireUnlockedOrOwner(player, message.payload.cardId)
+        this.updateMapCard(message.payload.cardId, message.payload.updates)
+        await this.commit('card.edit')
+        return
+
+      case 'card.delete':
+        if (room.mode === 'co-creation') throw new Error('Recycle cards during co-creation instead of deleting them')
+        room.map_cards = room.map_cards.filter(card => card.id !== message.payload.cardId)
+        room.connections = room.connections.filter(conn => (
+          conn.from_card_id !== message.payload.cardId && conn.to_card_id !== message.payload.cardId
+        ))
+        await this.commit('card.delete')
+        return
+
+      case 'card.recycle':
+        this.recycleCard(player, message.payload.cardId)
+        await this.commit('card.recycle')
+        return
+
+      case 'connection.add':
+        room.connections.push({ ...message.payload, id: id('conn') })
+        await this.commit('connection.add')
+        return
+
+      case 'connection.remove':
+        room.connections = room.connections.filter(conn => conn.id !== message.payload.connectionId)
+        await this.commit('connection.remove')
+        return
+
+      case 'annotation.add':
+        room.annotations.push({ ...message.payload, id: id('ann') })
+        await this.commit('annotation.add')
+        return
+
+      case 'annotation.remove':
+        room.annotations = room.annotations.filter(ann => ann.id !== message.payload.annotationId)
+        await this.commit('annotation.remove')
+        return
+
+      case 'room.importPack': {
+        const pack = assertDhPack(message.payload.pack)
+        this.importPack(pack)
+        await this.commit('room.importPack')
+        return
+      }
+    }
+  }
+
+  private startCoCreation(): void {
+    const room = this.requireRoom()
+    room.mode = 'co-creation'
+    room.drawn_this_turn = {}
+    room.current_turn_player_id = this.nextOnlinePlayer(room.turn_order[0] ?? null)
+
+    for (const player of room.players.filter(item => item.is_online)) {
+      room.hands[player.id] = [...(room.hands[player.id] ?? []), ...room.deck.splice(0, 5)]
+    }
+  }
+
+  private endCoCreation(): void {
+    const room = this.requireRoom()
+    const returned: DhCard[] = []
+    for (const playerId of Object.keys(room.hands)) {
+      returned.push(...room.hands[playerId].filter(card => !card.is_custom))
+      room.hands[playerId] = []
+    }
+    room.deck = shuffle([...room.deck, ...returned])
+    room.mode = 'normal'
+    room.current_turn_player_id = null
+    room.drawn_this_turn = {}
+    this.pendingDraws.clear()
+  }
+
+  private playCard(player: Player, cardId: string, x: number, y: number): void {
+    const room = this.requireRoom()
+    const hand = room.hands[player.id] ?? []
+    const card = hand.find(item => item.id === cardId)
+    if (!card) throw new Error('Card is not in your hand')
+
+    const size = getCardGridSize(card.type)
+    const mapCard: MapCard = {
+      ...card,
+      ...size,
+      x: snapToGrid(x),
+      y: snapToGrid(y),
+      placed_by: player.nickname,
+      placed_by_player_id: player.id,
+      player_color: player.color,
+      is_expanded: false,
+    }
+
+    room.hands[player.id] = hand.filter(item => item.id !== cardId)
+    room.map_cards.push(mapCard)
+  }
+
+  private recycleCard(player: Player, cardId: string): void {
+    const room = this.requireRoom()
+    const card = this.requireMapCard(cardId)
+    if (room.mode !== 'co-creation') throw new Error('Recycle is only available during co-creation')
+    if (card.placed_by_player_id !== player.id && player.id !== room.host_player_id) {
+      throw new Error('Only the owner or host can recycle this card')
+    }
+    room.map_cards = room.map_cards.filter(item => item.id !== cardId)
+    room.connections = room.connections.filter(conn => conn.from_card_id !== cardId && conn.to_card_id !== cardId)
+    room.hands[card.placed_by_player_id] = [...(room.hands[card.placed_by_player_id] ?? []), stripMapFields(card)]
+  }
+
+  private importPack(pack: DhPack): void {
+    const room = this.requireRoom()
+    const packId = id('pack')
+    const cards = pack.cards.map(card => ({
+      id: card.id ?? id('card'),
+      type: card.type,
+      title: card.title,
+      content: card.content,
+      style: card.style,
+      is_custom: false,
+      pack_id: packId,
+    }))
+    room.selected_pack_ids.push(packId)
+    room.deck = shuffle([...room.deck, ...cards])
+  }
+
+  private lockCard(player: Player, cardId: string): void {
+    const card = this.requireMapCard(cardId)
+    if (card.locked_by_player_id && card.locked_by_player_id !== player.id) throw new Error('Card is locked by another player')
+    card.locked_by = player.nickname
+    card.locked_by_player_id = player.id
+    card.locked_until = new Date(Date.now() + 30_000).toISOString()
+  }
+
+  private unlockCard(player: Player, cardId: string): void {
+    const card = this.requireMapCard(cardId)
+    if (card.locked_by_player_id && card.locked_by_player_id !== player.id) return
+    delete card.locked_by
+    delete card.locked_by_player_id
+    delete card.locked_until
+  }
+
+  private updateMapCard(cardId: string, updates: Partial<MapCard>): void {
+    const room = this.requireRoom()
+    room.map_cards = room.map_cards.map(card => card.id === cardId ? { ...card, ...updates } : card)
+  }
+
+  private advanceTurn(skipPlayerId?: string): void {
+    const room = this.requireRoom()
+    const onlineOrder = room.turn_order.filter(id => (
+      id !== skipPlayerId && room.players.find(player => player.id === id)?.is_online
+    ))
+    if (!onlineOrder.length) {
+      room.current_turn_player_id = null
+      return
+    }
+
+    const current = room.current_turn_player_id
+    const currentIndex = current ? onlineOrder.indexOf(current) : -1
+    const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % onlineOrder.length
+    room.current_turn_player_id = onlineOrder[nextIndex]
+    room.drawn_this_turn[room.current_turn_player_id] = false
+  }
+
+  private nextOnlinePlayer(preferred: string | null): string | null {
+    const room = this.requireRoom()
+    const online = room.turn_order.filter(id => room.players.find(player => player.id === id)?.is_online)
+    if (!online.length) return null
+    return preferred && online.includes(preferred) ? preferred : online[0]
+  }
+
+  private async disconnect(socket: WebSocket): Promise<void> {
+    const session = this.sockets.get(socket)
+    if (!session) return
+    this.sockets.delete(socket)
+
+    const room = await this.load()
+    const player = room?.players.find(item => item.id === session.playerId)
+    if (!room || !player) return
+
+    player.is_online = false
+    player.last_seen_at = new Date().toISOString()
+    this.transferHostIfNeeded()
+    await this.commit('player.offline')
+  }
+
+  private transferHostIfNeeded(): void {
+    const room = this.requireRoom()
+    const host = room.players.find(player => player.id === room.host_player_id)
+    if (host?.is_online) return
+
+    const nextHost = room.players.find(player => player.is_online)
+    if (!nextHost) return
+
+    room.host_player_id = nextHost.id
+    room.players = room.players.map(player => ({ ...player, is_host: player.id === nextHost.id }))
+  }
+
+  private async exportDhRoom(): Promise<Response> {
+    const room = await this.mustLoad()
+    const host = room.players.find(player => player.id === room.host_player_id)
+    const currentTurn = room.players.find(player => player.id === room.current_turn_player_id)
+    const backup: DhRoomBackup = {
+      format: 'dhroom',
+      version: 1,
+      room: {
+        id: room.room_id,
+        name: room.room_name,
+        invite_code: room.invite_code,
+        created_at: room.created_at,
+        expires_at: room.expires_at,
+      },
+      session: {
+        mode: room.mode,
+        current_host: host?.nickname ?? '',
+        current_turn_player: currentTurn?.nickname ?? null,
+        turn_order: room.turn_order
+          .map(id => room.players.find(player => player.id === id)?.nickname)
+          .filter((name): name is string => Boolean(name)),
+        hands: Object.entries(room.hands).map(([ownerId, cards]) => ({
+          owner: room.players.find(player => player.id === ownerId)?.nickname ?? ownerId,
+          cards,
+        })),
+      },
+      map: {
+        cards: room.map_cards,
+        connections: room.connections,
+        annotations: room.annotations,
+      },
+      players: room.players.map(player => ({
+        id: player.id,
+        nickname: player.nickname,
+        color: player.color,
+        is_host: player.id === room.host_player_id,
+        is_online: player.is_online,
+      })),
+      exported_at: new Date().toISOString(),
+    }
+
+    return json(backup)
+  }
+
+  private async commit(reason: string): Promise<void> {
+    const room = this.requireRoom()
+    room.updated_at = new Date().toISOString()
+    room.snapshot_version += 1
+    await this.save()
+    this.broadcast({ type: 'room.updated', payload: { state: this.publicState(), reason } })
+  }
+
+  private async load(): Promise<RoomState | null> {
+    if (this.room) return this.room
+    this.room = await this.ctx.storage.get<RoomState>('room') ?? null
+    return this.room
+  }
+
+  private async mustLoad(): Promise<RoomState> {
+    const room = await this.load()
+    if (!room) throw new HttpError(404, 'room_not_found')
+    return room
+  }
+
+  private async save(): Promise<void> {
+    if (!this.room) return
+    await this.ctx.storage.put('room', this.room)
+  }
+
+  private publicState(): RoomState {
+    return structuredClone(this.requireRoom())
+  }
+
+  private requireRoom(): RoomState {
+    if (!this.room) throw new Error('Room is not loaded')
+    return this.room
+  }
+
+  private requirePlayer(playerId: string): Player {
+    const player = this.requireRoom().players.find(item => item.id === playerId)
+    if (!player) throw new Error('Unknown player')
+    return player
+  }
+
+  private requireMapCard(cardId: string): MapCard {
+    const card = this.requireRoom().map_cards.find(item => item.id === cardId)
+    if (!card) throw new Error('Unknown map card')
+    return card
+  }
+
+  private requireHost(player: Player): void {
+    if (player.id !== this.requireRoom().host_player_id) throw new Error('Host permission required')
+  }
+
+  private requireCoCreation(): void {
+    if (this.requireRoom().mode !== 'co-creation') throw new Error('Co-creation mode required')
+  }
+
+  private requireCurrentTurn(player: Player): void {
+    this.requireCoCreation()
+    if (this.requireRoom().current_turn_player_id !== player.id) throw new Error('It is not your turn')
+  }
+
+  private requireUnlockedOrOwner(player: Player, cardId: string): void {
+    const card = this.requireMapCard(cardId)
+    if (card.locked_by_player_id && card.locked_by_player_id !== player.id) {
+      throw new Error('Card is locked by another player')
+    }
+  }
+
+  private send(socket: WebSocket, message: unknown): void {
+    socket.send(JSON.stringify(message))
+  }
+
+  private sendError(socket: WebSocket, requestId: string | undefined, code: string, message: string): void {
+    this.send(socket, { type: 'error', requestId, payload: { code, message } })
+  }
+
+  private broadcast(message: unknown): void {
+    const encoded = JSON.stringify(message)
+    for (const socket of this.sockets.keys()) {
+      try {
+        socket.send(encoded)
+      } catch {
+        this.sockets.delete(socket)
+      }
+    }
+  }
+}
+
+function stripMapFields(card: MapCard): DhCard {
+  return {
+    id: card.id,
+    type: card.type,
+    title: card.title,
+    content: card.content,
+    style: card.style,
+    is_custom: card.is_custom,
+    pack_id: card.pack_id,
+  }
+}
+
+function makePlayer(idValue: string, nickname: string, color: string, isHost: boolean, now: Date): Player {
+  return {
+    id: idValue,
+    nickname,
+    color,
+    is_host: isHost,
+    is_online: true,
+    joined_at: now.toISOString(),
+    last_seen_at: now.toISOString(),
+  }
+}
+
+function roomStub(env: Env, inviteCode: string): DurableObjectStub {
+  return env.ROOMS.get(env.ROOMS.idFromName(inviteCode))
+}
+
+function internalRequest(pathname: string, init?: RequestInit): Request {
+  return new Request(`https://room.local${pathname}`, init)
+}
+
+function buildWebSocketUrl(requestUrl: string, inviteCode: string, token: string): string {
+  const url = new URL(requestUrl)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  url.pathname = `/api/rooms/${inviteCode}/ws`
+  url.search = new URLSearchParams({ token }).toString()
+  return url.toString()
+}
+
+function generateInviteCode(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = new Uint8Array(6)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, byte => alphabet[byte % alphabet.length]).join('')
+}
+
+function id(prefix: string): string {
+  return `${prefix}_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`
+}
+
+function cleanText(value: unknown, fallback: string, maxLength: number): string {
+  const text = typeof value === 'string' ? value.trim() : ''
+  return (text || fallback).slice(0, maxLength)
+}
+
+function normaliseInvite(value: string): string {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6)
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const copy = [...items]
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const randomIndex = crypto.getRandomValues(new Uint32Array(1))[0] % (index + 1)
+    ;[copy[index], copy[randomIndex]] = [copy[randomIndex], copy[index]]
+  }
+  return copy
+}
+
+async function signSession(secret: string, payload: SessionPayload): Promise<string> {
+  const body = base64UrlEncode(JSON.stringify(payload))
+  const signature = await hmac(secret, body)
+  return `${body}.${signature}`
+}
+
+async function verifySession(secret: string, token: string): Promise<SessionPayload | null> {
+  const [body, signature] = token.split('.')
+  if (!body || !signature) return null
+  const expected = await hmac(secret, body)
+  if (signature !== expected) return null
+  const payload = JSON.parse(base64UrlDecode(body)) as SessionPayload
+  if (payload.exp < Math.floor(Date.now() / 1000)) return null
+  return payload
+}
+
+async function hmac(secret: string, body: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body))
+  return base64UrlEncodeBytes(new Uint8Array(signature))
+}
+
+function base64UrlEncode(value: string): string {
+  return base64UrlEncodeBytes(new TextEncoder().encode(value))
+}
+
+function base64UrlEncodeBytes(bytes: Uint8Array): string {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')
+}
+
+function base64UrlDecode(value: string): string {
+  const padded = value.replaceAll('-', '+').replaceAll('_', '/').padEnd(Math.ceil(value.length / 4) * 4, '=')
+  const binary = atob(padded)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return new TextDecoder().decode(bytes)
+}
+
+function json(body: unknown, init: ResponseInit = {}): Response {
+  return withCors(new Response(JSON.stringify(body, null, 2), {
+    ...init,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      ...(init.headers ?? {}),
+    },
+  }))
+}
+
+function emptyCors(): Response {
+  return withCors(new Response(null, { status: 204 }))
+}
+
+function withCors(response: Response): Response {
+  const next = new Response(response.body, response)
+  next.headers.set('access-control-allow-origin', '*')
+  next.headers.set('access-control-allow-methods', 'GET,POST,OPTIONS')
+  next.headers.set('access-control-allow-headers', 'content-type,authorization')
+  return next
+}
+
+function messageFrom(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+class HttpError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message)
+  }
+}

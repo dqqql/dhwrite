@@ -1,0 +1,14 @@
+{
+  "name": "dhgc",
+  "private": true,
+  "workspaces": [
+    "fronted",
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "realtime:dev": "npm --workspace apps/realtime run dev",
+    "realtime:deploy": "npm --workspace apps/realtime run deploy",
+    "realtime:typecheck": "npm --workspace apps/realtime run typecheck"
+  }
+}
