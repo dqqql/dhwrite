@@ -41,7 +41,11 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
 
   const isHost = currentRoom.host_player_id === currentPlayerId
   const isCoCreation = currentRoom.mode === 'co-creation'
-  const modeLabel = currentRoom.mode === 'co-creation' ? '共创模式' : currentRoom.mode === 'normal' ? '普通模式' : '自由模式'
+  const modeLabel = currentRoom.mode === 'co-creation'
+    ? '共创模式'
+    : currentRoom.mode === 'normal'
+      ? '普通模式'
+      : '自由模式'
   const isDisconnected = connectionStatus === 'error' || connectionStatus === 'idle'
   const isReconnecting = connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
   const expiresAt = new Date(currentRoom.expires_at)
@@ -64,7 +68,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   }
 
   function exportMarkdown() {
-    let markdown = `# ${currentRoom.room_name} · 叙事摘要\n\n`
+    let markdown = `# ${currentRoom.room_name} - 叙事摘要\n\n`
     const locations = currentRoom.map_cards.filter((card) => card.type === 'Location')
     const npcs = currentRoom.map_cards.filter((card) => card.type === 'NPC')
     const features = currentRoom.map_cards.filter((card) => card.type === 'Feature')
@@ -84,7 +88,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
     }
 
     if (features.length) {
-      markdown += '## 特性\n'
+      markdown += '## 特色\n'
       features.forEach((card) => {
         markdown += `### ${card.title}\n${card.content}\n\n`
       })
@@ -97,6 +101,14 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
         const to = currentRoom.map_cards.find((card) => card.id === connection.to_card_id)
         const relation = connection.color === 'red' ? '冲突' : connection.color === 'green' ? '盟友' : '未知'
         markdown += `- **${from?.title}** -> **${to?.title}** (${connection.label || relation})\n`
+      })
+      markdown += '\n'
+    }
+
+    if (currentRoom.annotations.length) {
+      markdown += '## 标注\n'
+      currentRoom.annotations.forEach((annotation) => {
+        markdown += `- ${annotation.text}\n`
       })
     }
 
@@ -217,7 +229,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
           }}
         >
           <Wifi size={11} style={{ animation: 'pulse 1.5s infinite' }} />
-          重连中…
+          重连中
         </div>
       )}
 

@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link2, Maximize2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { Link2, Maximize2, Type, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { nanoid } from 'nanoid'
 import { useStore } from '@/store/useStore'
 import { DhCardNode } from './CardNode'
 import { CardContextMenu } from './CardContextMenu'
+import { AnnotationNode } from './AnnotationNode'
 import { getCardVisualConfig } from '@/utils/cardTypeConfig'
 import { GRID_SIZE, getCardGridSize, snapToGrid } from '@/utils/grid'
 import type { CardType, DhCard } from '@/types'
@@ -76,6 +78,7 @@ export function MapCanvas() {
     currentPlayerId,
     setContextMenu,
     playCard,
+    addAnnotation,
     triggerPlacementAnimation,
     placementAnimation,
     clearPlacementAnimation,
@@ -88,6 +91,9 @@ export function MapCanvas() {
 
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 })
   const [pointerWorld, setPointerWorld] = useState<{ x: number; y: number } | null>(null)
+  const [isAnnotationPlacementActive, setIsAnnotationPlacementActive] = useState(false)
+  const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
+  const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null)
   const isPanning = useRef(false)
   const [isPanningActive, setIsPanningActive] = useState(false)
   const panStart = useRef({ mx: 0, my: 0, tx: 0, ty: 0 })
@@ -113,13 +119,15 @@ export function MapCanvas() {
   const onMouseDown = useCallback((event: React.MouseEvent) => {
     if (event.button !== 1 && event.button !== 0) return
 
-    if (event.button === 1 || (event.button === 0 && (event.target as HTMLElement).dataset.canvas === 'true')) {
+    if (event.button === 1 || (event.button === 0 && (event.target as HTMLElement).dataset.canvas === 'true' && !isAnnotationPlacementActive)) {
+      setSelectedAnnotationId(null)
+      setEditingAnnotationId(null)
       isPanning.current = true
       setIsPanningActive(true)
       panStart.current = { mx: event.clientX, my: event.clientY, tx: transform.x, ty: transform.y }
       event.preventDefault()
     }
-  }, [transform])
+  }, [isAnnotationPlacementActive, transform])
 
   const onMouseMove = useCallback((event: React.MouseEvent) => {
     if (connectionDraftFromCardId) {
@@ -137,6 +145,22 @@ export function MapCanvas() {
     isPanning.current = false
     setIsPanningActive(false)
   }, [])
+
+  useEffect(() => {
+    if (!room) {
+      setSelectedAnnotationId(null)
+      setEditingAnnotationId(null)
+      return
+    }
+
+    if (selectedAnnotationId && !room.annotations.some((annotation) => annotation.id === selectedAnnotationId)) {
+      setSelectedAnnotationId(null)
+    }
+
+    if (editingAnnotationId && !room.annotations.some((annotation) => annotation.id === editingAnnotationId)) {
+      setEditingAnnotationId(null)
+    }
+  }, [editingAnnotationId, room, selectedAnnotationId])
 
   useEffect(() => {
     const container = containerRef.current
@@ -206,6 +230,26 @@ export function MapCanvas() {
   const bgPos = `${transform.x % (GRID_SIZE * transform.scale)}px ${transform.y % (GRID_SIZE * transform.scale)}px`
   const bgSize = `${GRID_SIZE * transform.scale}px ${GRID_SIZE * transform.scale}px`
 
+  const createAnnotationAt = useCallback((clientX: number, clientY: number) => {
+    const worldPoint = toWorldPoint(clientX, clientY)
+    if (!worldPoint) return
+
+    const annotationId = nanoid()
+    const created = addAnnotation({
+      id: annotationId,
+      text: '新标注',
+      x: worldPoint.x,
+      y: worldPoint.y,
+      font_size: 18,
+    })
+
+    if (!created) return
+
+    setIsAnnotationPlacementActive(false)
+    setSelectedAnnotationId(annotationId)
+    setEditingAnnotationId(annotationId)
+  }, [addAnnotation, toWorldPoint])
+
   const connectionDraftSource = useMemo(() => {
     if (!room || !connectionDraftFromCardId) return null
     return room.map_cards.find((card) => card.id === connectionDraftFromCardId) ?? null
@@ -243,7 +287,7 @@ export function MapCanvas() {
         backgroundImage: 'linear-gradient(var(--grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--grid-line) 1px, transparent 1px)',
         backgroundSize: bgSize,
         backgroundPosition: bgPos,
-        cursor: isPanningActive ? 'grabbing' : connectionDraftSource ? 'crosshair' : 'default',
+        cursor: isPanningActive ? 'grabbing' : (connectionDraftSource || isAnnotationPlacementActive) ? 'crosshair' : 'default',
         userSelect: 'none',
       }}
       onMouseDown={onMouseDown}
@@ -257,6 +301,35 @@ export function MapCanvas() {
         if (connectionDraftFromCardId) cancelConnection()
         setContextMenu(null)
       }}
+      onClick={(event) => {
+        const target = event.target as HTMLElement
+
+        if (isAnnotationPlacementActive) {
+          if (
+            target.closest('.dh-card')
+            || target.closest('[data-annotation-node="true"]')
+            || target.closest('button')
+            || target.closest('textarea')
+            || target.closest('input')
+          ) {
+            return
+          }
+
+          createAnnotationAt(event.clientX, event.clientY)
+          return
+        }
+
+        if (
+          !target.closest('.dh-card')
+          && !target.closest('[data-annotation-node="true"]')
+          && !target.closest('button')
+          && !target.closest('textarea')
+          && !target.closest('input')
+        ) {
+          setSelectedAnnotationId(null)
+          setEditingAnnotationId(null)
+        }
+      }}
     >
       <div
         data-canvas="true"
@@ -269,23 +342,19 @@ export function MapCanvas() {
         }}
       >
         {room?.annotations.map((annotation) => (
-          <div
+          <AnnotationNode
             key={annotation.id}
-            style={{
-              position: 'absolute',
-              left: annotation.x,
-              top: annotation.y,
-              fontSize: annotation.font_size,
-              color: 'var(--text-secondary)',
-              fontWeight: 500,
-              pointerEvents: 'none',
-              letterSpacing: '0.02em',
-              fontFamily: '"Noto Sans SC", sans-serif',
-              textShadow: '0 1px 4px rgba(0,0,0,0.8)',
+            annotation={annotation}
+            canvasScale={transform.scale}
+            selected={selectedAnnotationId === annotation.id}
+            editing={editingAnnotationId === annotation.id}
+            onSelect={setSelectedAnnotationId}
+            onStartEdit={(annotationId) => {
+              setSelectedAnnotationId(annotationId)
+              setEditingAnnotationId(annotationId)
             }}
-          >
-            {annotation.text}
-          </div>
+            onStopEdit={() => setEditingAnnotationId(null)}
+          />
         ))}
 
         <svg
@@ -473,7 +542,65 @@ export function MapCanvas() {
         </div>
       )}
 
+      {isAnnotationPlacementActive && (
+        <div
+          className="glass-panel-sm"
+          style={{
+            position: 'absolute',
+            top: connectionDraftSource ? 78 : 14,
+            left: 14,
+            zIndex: 250,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+          }}
+        >
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(37,99,235,0.1)',
+              color: 'var(--accent-violet)',
+              border: '1px solid rgba(37,99,235,0.18)',
+            }}
+          >
+            <Type size={14} />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>
+              点击画布放置文字标注
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+              放下后会直接进入编辑，空内容会自动删除。
+            </div>
+          </div>
+          <button className="btn btn-ghost btn-icon" onClick={() => setIsAnnotationPlacementActive(false)} title="取消放置标注">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       <div style={{ position: 'absolute', bottom: 20, right: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <button
+          title={isAnnotationPlacementActive ? '取消标注放置' : '添加文字标注'}
+          className={`btn ${isAnnotationPlacementActive ? 'btn-primary' : 'btn-secondary'}`}
+          style={{
+            background: isAnnotationPlacementActive ? 'var(--accent-violet)' : 'var(--bg-elevated)',
+            color: isAnnotationPlacementActive ? 'white' : 'var(--text-primary)',
+          }}
+          onClick={() => {
+            setIsAnnotationPlacementActive((value) => !value)
+            setSelectedAnnotationId(null)
+            setEditingAnnotationId(null)
+          }}
+        >
+          <Type size={14} /> {isAnnotationPlacementActive ? '取消标注' : '添加标注'}
+        </button>
+
         {[
           { Icon: ZoomIn, action: zoomIn, title: '放大' },
           { Icon: ZoomOut, action: zoomOut, title: '缩小' },

@@ -456,8 +456,13 @@ export class RoomDurableObject {
         return
 
       case 'annotation.add':
-        room.annotations.push({ ...message.payload, id: id('ann') })
+        this.addAnnotation(message.payload)
         await this.commit('annotation.add')
+        return
+
+      case 'annotation.update':
+        this.updateAnnotation(message.payload.annotationId, message.payload.updates)
+        await this.commit('annotation.update')
         return
 
       case 'annotation.remove':
@@ -809,6 +814,40 @@ export class RoomDurableObject {
     this.updateMapCard(cardId, { x, y })
   }
 
+  private addAnnotation(annotation: { id?: string; text: string; x: number; y: number; font_size: number }): void {
+    const room = this.requireRoom()
+    const annotationId = typeof annotation.id === 'string' && annotation.id.trim() ? annotation.id.trim() : id('ann')
+    const exists = room.annotations.some((item) => item.id === annotationId)
+    if (exists) {
+      throw new Error('Annotation id already exists')
+    }
+
+    room.annotations.push({
+      id: annotationId,
+      text: cleanText(annotation.text, '新标注', 280),
+      x: finiteNumber(annotation.x, 0),
+      y: finiteNumber(annotation.y, 0),
+      font_size: clamp(Math.round(finiteNumber(annotation.font_size, 18)), 12, 48),
+    })
+  }
+
+  private updateAnnotation(annotationId: string, updates: Partial<{ text: string; x: number; y: number; font_size: number }>): void {
+    const annotation = this.requireAnnotation(annotationId)
+
+    if (typeof updates.text === 'string') {
+      annotation.text = cleanText(updates.text, annotation.text, 280)
+    }
+    if (typeof updates.x === 'number') {
+      annotation.x = finiteNumber(updates.x, annotation.x)
+    }
+    if (typeof updates.y === 'number') {
+      annotation.y = finiteNumber(updates.y, annotation.y)
+    }
+    if (typeof updates.font_size === 'number') {
+      annotation.font_size = clamp(Math.round(finiteNumber(updates.font_size, annotation.font_size)), 12, 48)
+    }
+  }
+
   private resizeMapCard(cardId: string, width: number, height: number): void {
     const card = this.requireMapCard(cardId)
     this.updateMapCard(cardId, normalizeCardDimensions(card.type, width, height))
@@ -1045,6 +1084,12 @@ export class RoomDurableObject {
       }
     }
   }
+
+  private requireAnnotation(annotationId: string) {
+    const annotation = this.requireRoom().annotations.find((item) => item.id === annotationId)
+    if (!annotation) throw new Error('Unknown annotation')
+    return annotation
+  }
 }
 
 function stripMapFields(card: MapCard): DhCard {
@@ -1120,6 +1165,14 @@ function shuffle<T>(items: T[]): T[] {
     ;[copy[index], copy[randomIndex]] = [copy[randomIndex], copy[index]]
   }
   return copy
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function finiteNumber(value: number, fallback: number): number {
+  return Number.isFinite(value) ? value : fallback
 }
 
 async function signSession(secret: string, payload: SessionPayload): Promise<string> {

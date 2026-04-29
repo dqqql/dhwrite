@@ -25,7 +25,8 @@ export type ClientMessage =
   | { type: 'connection.add'; requestId?: string; payload: Omit<Connection, 'id'> }
   | { type: 'connection.update'; requestId?: string; payload: { connectionId: string; updates: Partial<Pick<Connection, 'color' | 'label'>> } }
   | { type: 'connection.remove'; requestId?: string; payload: { connectionId: string } }
-  | { type: 'annotation.add'; requestId?: string; payload: Omit<Annotation, 'id'> }
+  | { type: 'annotation.add'; requestId?: string; payload: Annotation }
+  | { type: 'annotation.update'; requestId?: string; payload: { annotationId: string; updates: Partial<Pick<Annotation, 'text' | 'x' | 'y' | 'font_size'>> } }
   | { type: 'annotation.remove'; requestId?: string; payload: { annotationId: string } }
   | { type: 'ping'; requestId?: string; payload?: Record<string, never> }
 

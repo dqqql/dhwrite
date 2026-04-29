@@ -115,7 +115,9 @@ interface AppStore extends UIState {
   updateConnection: (connectionId: string, updates: Partial<Pick<Connection, 'color' | 'label'>>) => void
   removeConnection: (connId: string) => void
 
-  addAnnotation: (ann: Omit<Annotation, 'id'>) => void
+  addAnnotation: (ann: Annotation) => boolean
+  updateAnnotationLocal: (annotationId: string, updates: Partial<Pick<Annotation, 'text' | 'x' | 'y' | 'font_size'>>) => void
+  commitAnnotationUpdate: (annotationId: string, updates: Partial<Pick<Annotation, 'text' | 'x' | 'y' | 'font_size'>>) => void
   removeAnnotation: (annId: string) => void
   importPack: (value: unknown) => void
   importRoomBackup: (value: unknown) => void
@@ -764,17 +766,62 @@ export const useStore = create<AppStore>((set, get) => {
     },
 
     addAnnotation: (ann) => {
-      sendMessage({
+      const sent = sendMessage({
         type: 'annotation.add',
         payload: ann,
+      })
+
+      if (!sent) return false
+
+      set((state) => {
+        if (!state.room) return state
+        if (state.room.annotations.some((annotation) => annotation.id === ann.id)) {
+          return state
+        }
+
+        return {
+          room: {
+            ...state.room,
+            annotations: [...state.room.annotations, ann],
+          },
+        }
+      })
+
+      return true
+    },
+
+    updateAnnotationLocal: (annotationId, updates) => {
+      set((state) => ({
+        room: state.room ? {
+          ...state.room,
+          annotations: state.room.annotations.map((annotation) => (
+            annotation.id === annotationId ? { ...annotation, ...updates } : annotation
+          )),
+        } : null,
+      }))
+    },
+
+    commitAnnotationUpdate: (annotationId, updates) => {
+      sendMessage({
+        type: 'annotation.update',
+        payload: { annotationId, updates },
       })
     },
 
     removeAnnotation: (annId) => {
-      sendMessage({
+      const sent = sendMessage({
         type: 'annotation.remove',
         payload: { annotationId: annId },
       })
+
+      if (sent) {
+        set((state) => ({
+          room: state.room ? {
+            ...state.room,
+            annotations: state.room.annotations.filter((annotation) => annotation.id !== annId),
+          } : null,
+        }))
+      }
     },
 
     importPack: (value) => {
