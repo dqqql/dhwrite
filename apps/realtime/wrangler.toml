@@ -16,5 +16,5 @@ new_sqlite_classes = ["RoomDurableObject"]
 # database_name = "dhgc"
 # database_id = "<replace-with-d1-id>"
 
-[vars]
-SESSION_SECRET = "dev-only-change-before-deploy"
+[secrets]
+required = ["SESSION_SECRET"]
