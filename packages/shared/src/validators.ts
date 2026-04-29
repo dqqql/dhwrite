@@ -1,4 +1,4 @@
-import type { CardType, DhPack } from './types'
+import type { CardType, DhRoomBackup, DhPack, RoomPackLibraryItem, RoomSettings } from './types'
 
 const CARD_TYPES: CardType[] = ['Location', 'NPC', 'Feature']
 
@@ -32,10 +32,86 @@ export function assertDhPack(value: unknown): DhPack {
   return pack as DhPack
 }
 
+export function assertDhRoomBackup(value: unknown): DhRoomBackup {
+  if (!value || typeof value !== 'object') {
+    throw new Error('Room backup must be an object')
+  }
+
+  const backup = value as Partial<DhRoomBackup>
+  if (backup.format !== 'dhroom') throw new Error('Room backup format must be "dhroom"')
+  if (backup.version !== 1) throw new Error('Room backup version must be 1')
+  if (!backup.room || typeof backup.room !== 'object') throw new Error('Room metadata is required')
+  if (!backup.session || typeof backup.session !== 'object') throw new Error('Room session is required')
+  if (!backup.map || typeof backup.map !== 'object') throw new Error('Room map is required')
+  if (!Array.isArray(backup.players)) throw new Error('Room players must be an array')
+
+  if (!Array.isArray(backup.session.turn_order)) throw new Error('Room turn order must be an array')
+  if (!Array.isArray(backup.session.hands)) throw new Error('Room hands must be an array')
+  if (!Array.isArray(backup.session.deck)) {
+    ;(backup.session as { deck?: unknown }).deck = []
+  }
+  if (!Array.isArray(backup.map.cards)) throw new Error('Room map cards must be an array')
+  if (!Array.isArray(backup.map.connections)) throw new Error('Room connections must be an array')
+  if (!Array.isArray(backup.map.annotations)) throw new Error('Room annotations must be an array')
+
+  if (backup.library) {
+    assertRoomLibrary(backup.library.packs, backup.library.selected_pack_ids)
+  } else {
+    ;(backup as { library?: unknown }).library = {
+      packs: [],
+      selected_pack_ids: [],
+    }
+  }
+
+  if (backup.settings) {
+    assertRoomSettings(backup.settings)
+  } else {
+    ;(backup as { settings?: unknown }).settings = {
+      imports_enabled: false,
+    }
+  }
+
+  return backup as DhRoomBackup
+}
+
 export function safeJsonParse(value: string): unknown {
   try {
     return JSON.parse(value)
   } catch {
     throw new Error('Invalid JSON')
   }
+}
+
+function assertRoomLibrary(packs: unknown, selectedPackIds: unknown): asserts packs is RoomPackLibraryItem[] {
+  if (!Array.isArray(packs)) throw new Error('Room library packs must be an array')
+  if (!Array.isArray(selectedPackIds)) throw new Error('Room selected pack ids must be an array')
+
+  for (const [index, pack] of packs.entries()) {
+    if (!pack || typeof pack !== 'object') throw new Error(`Library pack ${index} must be an object`)
+    const candidate = pack as Partial<RoomPackLibraryItem>
+
+    if (typeof candidate.id !== 'string' || !candidate.id) throw new Error(`Library pack ${index} id is required`)
+    if (typeof candidate.pack_name !== 'string' || !candidate.pack_name.trim()) throw new Error(`Library pack ${index} name is required`)
+    if (candidate.source !== 'built-in' && candidate.source !== 'imported') {
+      throw new Error(`Library pack ${index} source is invalid`)
+    }
+    if (!Array.isArray(candidate.cards)) throw new Error(`Library pack ${index} cards must be an array`)
+
+    for (const [cardIndex, card] of candidate.cards.entries()) {
+      if (!card || typeof card !== 'object') throw new Error(`Library pack ${index} card ${cardIndex} must be an object`)
+      if (!isCardType(card.type)) throw new Error(`Library pack ${index} card ${cardIndex} has invalid type`)
+      if (typeof card.id !== 'string' || !card.id) throw new Error(`Library pack ${index} card ${cardIndex} id is required`)
+      if (typeof card.title !== 'string' || !card.title.trim()) throw new Error(`Library pack ${index} card ${cardIndex} title is required`)
+      if (typeof card.content !== 'string') throw new Error(`Library pack ${index} card ${cardIndex} content is required`)
+      if (typeof card.style !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(card.style)) {
+        throw new Error(`Library pack ${index} card ${cardIndex} style must be a hex color`)
+      }
+    }
+  }
+}
+
+function assertRoomSettings(settings: unknown): asserts settings is RoomSettings {
+  if (!settings || typeof settings !== 'object') throw new Error('Room settings must be an object')
+  const candidate = settings as Partial<RoomSettings>
+  if (typeof candidate.imports_enabled !== 'boolean') throw new Error('Room imports_enabled must be a boolean')
 }

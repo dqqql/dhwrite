@@ -1,13 +1,16 @@
 import React from 'react'
-import { MapCanvas } from '@/components/map/MapCanvas'
 import { TopBar } from '@/components/layout/TopBar'
-import { PlayerPanel } from '@/components/panels/PlayerPanel'
+import { MapCanvas } from '@/components/map/MapCanvas'
 import { HandArea } from '@/components/panels/HandArea'
-import { DrawModal } from '@/components/ui/DrawModal'
+import { PlayerPanel } from '@/components/panels/PlayerPanel'
+import { CardLibraryModal } from '@/components/ui/CardLibraryModal'
+import { ConnectionModal } from '@/components/ui/ConnectionModal'
 import { CreateCardModal } from '@/components/ui/CreateCardModal'
+import { DrawModal } from '@/components/ui/DrawModal'
+import { EditCardModal } from '@/components/ui/EditCardModal'
 import { EndCoCreationConfirm } from '@/components/ui/EndCoCreationConfirm'
-import { RoomSettingsModal } from '@/components/ui/RoomSettingsModal'
 import { ImportModal } from '@/components/ui/ImportModal'
+import { RoomSettingsModal } from '@/components/ui/RoomSettingsModal'
 import { ToastContainer } from '@/components/ui/Toast'
 import { useStore } from '@/store/useStore'
 
@@ -20,16 +23,18 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
 
   if (!room) {
     return (
-      <div style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-base)',
-        color: 'var(--text-secondary)',
-        fontSize: 14,
-      }}>
+      <div
+        style={{
+          width: '100vw',
+          height: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--bg-base)',
+          color: 'var(--text-secondary)',
+          fontSize: 14,
+        }}
+      >
         {connectionStatus === 'connecting' ? '正在同步房间状态…' : '房间状态尚未就绪'}
         <ToastContainer />
       </div>
@@ -40,30 +45,28 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
-      {/* Top bar (z=300) */}
       <TopBar onLeaveRoom={onLeaveRoom} />
 
-      {/* Reconnecting / disconnected banner */}
       {showReconnectBanner && (
-        <div style={{
-          position: 'absolute',
-          top: 52,
-          left: 0,
-          right: 0,
-          zIndex: 400,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 10,
-          padding: '8px 14px',
-          background: connectionStatus === 'error'
-            ? 'rgba(244,63,94,0.12)'
-            : 'rgba(245,158,11,0.12)',
-          borderBottom: `1px solid ${connectionStatus === 'error' ? 'var(--accent-rose)' : 'var(--accent-amber)'}`,
-          fontSize: 13,
-          color: connectionStatus === 'error' ? 'var(--accent-rose)' : 'var(--accent-amber)',
-          backdropFilter: 'blur(4px)',
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 52,
+            left: 0,
+            right: 0,
+            zIndex: 400,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            padding: '8px 14px',
+            background: connectionStatus === 'error' ? 'rgba(244,63,94,0.12)' : 'rgba(245,158,11,0.12)',
+            borderBottom: `1px solid ${connectionStatus === 'error' ? 'var(--accent-rose)' : 'var(--accent-amber)'}`,
+            fontSize: 13,
+            color: connectionStatus === 'error' ? 'var(--accent-rose)' : 'var(--accent-amber)',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
           {connectionStatus === 'error' ? (
             <>
               <span>与房间的连接已断开</span>
@@ -88,25 +91,22 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
         </div>
       )}
 
-      {/* Main canvas area */}
       <div style={{ position: 'absolute', inset: 0, top: showReconnectBanner ? 92 : 52 }}>
         <MapCanvas />
       </div>
 
-      {/* Player panel (z=100) */}
       <PlayerPanel />
-
-      {/* Hand area (z=200) */}
       <HandArea />
 
-      {/* Modals */}
       <DrawModal />
       <CreateCardModal />
+      <EditCardModal />
+      <ConnectionModal />
       <EndCoCreationConfirm />
       <RoomSettingsModal />
       <ImportModal />
+      <CardLibraryModal />
 
-      {/* Toasts */}
       <ToastContainer />
     </div>
   )

@@ -1,7 +1,7 @@
 import React from 'react'
 import { useStore } from '@/store/useStore'
 import type { DhCard } from '@/types'
-import { CARD_TYPE_CONFIG } from '@/utils/cardTypeConfig'
+import { getCardVisualConfig } from '@/utils/cardTypeConfig'
 import { Modal } from './Modal'
 import { Zap } from 'lucide-react'
 
@@ -28,7 +28,7 @@ export function DrawModal() {
 }
 
 function DrawOptionCard({ card, delay, onSelect }: { card: DhCard; delay: number; onSelect: () => void }) {
-  const cfg = CARD_TYPE_CONFIG[card.type]
+  const cfg = getCardVisualConfig(card.type, card.style)
 
   return (
     <button

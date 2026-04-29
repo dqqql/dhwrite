@@ -1,6 +1,7 @@
 export type CardType = 'Location' | 'NPC' | 'Feature'
 export type RoomMode = 'free' | 'co-creation' | 'normal'
 export type ConnectionColor = 'red' | 'green' | 'gray'
+export type RoomPackSource = 'built-in' | 'imported'
 
 export interface DhCard {
   id: string
@@ -63,6 +64,26 @@ export interface Player {
   last_seen_at: string
 }
 
+export interface RoomPackCard {
+  id: string
+  type: CardType
+  title: string
+  content: string
+  style: string
+}
+
+export interface RoomPackLibraryItem {
+  id: string
+  pack_name: string
+  description?: string
+  source: RoomPackSource
+  cards: RoomPackCard[]
+}
+
+export interface RoomSettings {
+  imports_enabled: boolean
+}
+
 export interface RoomState {
   room_id: string
   room_name: string
@@ -79,6 +100,8 @@ export interface RoomState {
   map_cards: MapCard[]
   connections: Connection[]
   annotations: Annotation[]
+  pack_library: RoomPackLibraryItem[]
+  settings: RoomSettings
   selected_pack_ids: string[]
   drawn_this_turn: Record<string, boolean>
   snapshot_version: number
@@ -113,6 +136,7 @@ export interface DhRoomBackup {
     current_host: string
     current_turn_player: string | null
     turn_order: string[]
+    deck: DhCard[]
     hands: Array<{ owner: string; cards: DhCard[] }>
   }
   map: {
@@ -120,6 +144,11 @@ export interface DhRoomBackup {
     connections: Connection[]
     annotations: Annotation[]
   }
+  library: {
+    packs: RoomPackLibraryItem[]
+    selected_pack_ids: string[]
+  }
+  settings: RoomSettings
   players: Array<Pick<Player, 'id' | 'nickname' | 'color' | 'is_host' | 'is_online'>>
   exported_at: string
 }

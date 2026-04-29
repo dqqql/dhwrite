@@ -1,9 +1,9 @@
 import React, { useRef, useCallback } from 'react'
 import { useStore } from '@/store/useStore'
 import type { MapCard } from '@/types'
-import { CARD_TYPE_CONFIG } from '@/utils/cardTypeConfig'
+import { getCardVisualConfig } from '@/utils/cardTypeConfig'
 import { ChevronDown, ChevronUp, Lock, Maximize2 } from 'lucide-react'
-import { GRID_SIZE } from '@/utils/grid'
+import { GRID_SIZE, MIN_CARD_GRID_COLS, MIN_CARD_GRID_ROWS } from '@/utils/grid'
 
 interface CardNodeProps {
   card: MapCard
@@ -14,16 +14,26 @@ interface CardNodeProps {
 export function DhCardNode({ card, canvasScale }: CardNodeProps) {
   const {
     room, currentPlayerId, toggleExpandCard, resizeCard, commitResizeCard,
-    lockCard, unlockCard, moveCard, commitMoveCard, setContextMenu,
+    lockCard, unlockCard, moveCard, commitMoveCard, updateCardTerritory,
+    commitCardTerritory, setContextMenu, connectionDraftFromCardId, completeConnection,
   } = useStore()
-  const cfg = CARD_TYPE_CONFIG[card.type]
+  const cfg = getCardVisualConfig(card.type, card.style)
   const currentPlayerName = room?.players.find(p => p.id === currentPlayerId)?.nickname
   const isLocked = !!card.locked_by && card.locked_by !== currentPlayerName
+  const territory = card.type === 'Location' ? card.territory : undefined
 
   const dragStart = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null)
-  const resizeStart = useRef<{ mx: number; my: number; scale: number } | null>(null)
+  const resizeStart = useRef<{ mx: number; my: number; width: number; height: number } | null>(null)
+  const territoryDragStart = useRef<{ mx: number; my: number; ox: number; oy: number; width: number; height: number } | null>(null)
+  const territoryResizeStart = useRef<{ mx: number; my: number; x: number; y: number; width: number; height: number } | null>(null)
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
+    if (connectionDraftFromCardId) {
+      e.stopPropagation()
+      completeConnection(card.id)
+      return
+    }
+
     if (isLocked) return
     e.stopPropagation()
     lockCard(card.id)
@@ -49,27 +59,41 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-  }, [card.id, card.x, card.y, canvasScale, commitMoveCard, isLocked, lockCard, unlockCard, moveCard])
+  }, [
+    card.id,
+    card.x,
+    card.y,
+    canvasScale,
+    commitMoveCard,
+    completeConnection,
+    connectionDraftFromCardId,
+    isLocked,
+    lockCard,
+    unlockCard,
+    moveCard,
+  ])
 
   const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
     if (isLocked) return
     e.stopPropagation()
     lockCard(card.id)
-    resizeStart.current = { mx: e.clientX, my: e.clientY, scale: card.grid_scale ?? 1 }
+    resizeStart.current = { mx: e.clientX, my: e.clientY, width: card.width, height: card.height }
 
     const onMove = (ev: MouseEvent) => {
       if (!resizeStart.current) return
       const dx = (ev.clientX - resizeStart.current.mx) / canvasScale
       const dy = (ev.clientY - resizeStart.current.my) / canvasScale
-      const gridDelta = Math.max(dx / (card.grid_cols * GRID_SIZE), dy / (card.grid_rows * GRID_SIZE))
-      const nextScale = Math.max(1, Math.min(4, Math.round(resizeStart.current.scale + gridDelta)))
-      resizeCard(card.id, nextScale)
+      const minWidth = MIN_CARD_GRID_COLS * GRID_SIZE
+      const minHeight = MIN_CARD_GRID_ROWS * GRID_SIZE
+      const nextWidth = Math.max(minWidth, resizeStart.current.width + dx)
+      const nextHeight = Math.max(minHeight, resizeStart.current.height + dy)
+      resizeCard(card.id, nextWidth, nextHeight)
     }
 
     const onUp = () => {
       const latestCard = useStore.getState().room?.map_cards.find((item) => item.id === card.id)
       if (latestCard) {
-        commitResizeCard(card.id, latestCard.grid_scale)
+        commitResizeCard(card.id, latestCard.width, latestCard.height)
       }
       unlockCard(card.id)
       resizeStart.current = null
@@ -80,9 +104,89 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }, [
-    card.id, card.grid_cols, card.grid_rows, card.grid_scale,
+    card.height, card.id, card.width,
     canvasScale, commitResizeCard, isLocked, lockCard, resizeCard, unlockCard,
   ])
+
+  const onTerritoryMouseDown = useCallback((e: React.MouseEvent) => {
+    if (isLocked || !territory) return
+    e.stopPropagation()
+    lockCard(card.id)
+    territoryDragStart.current = {
+      mx: e.clientX,
+      my: e.clientY,
+      ox: territory.x,
+      oy: territory.y,
+      width: territory.width,
+      height: territory.height,
+    }
+
+    const onMove = (ev: MouseEvent) => {
+      if (!territoryDragStart.current) return
+      const dx = (ev.clientX - territoryDragStart.current.mx) / canvasScale
+      const dy = (ev.clientY - territoryDragStart.current.my) / canvasScale
+      updateCardTerritory(card.id, {
+        x: territoryDragStart.current.ox + dx,
+        y: territoryDragStart.current.oy + dy,
+        width: territoryDragStart.current.width,
+        height: territoryDragStart.current.height,
+      })
+    }
+
+    const onUp = () => {
+      const latestCard = useStore.getState().room?.map_cards.find((item) => item.id === card.id)
+      if (latestCard?.type === 'Location' && latestCard.territory) {
+        commitCardTerritory(card.id, latestCard.territory)
+      }
+      unlockCard(card.id)
+      territoryDragStart.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [canvasScale, card.id, commitCardTerritory, isLocked, lockCard, territory, unlockCard, updateCardTerritory])
+
+  const onTerritoryResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    if (isLocked || !territory) return
+    e.stopPropagation()
+    lockCard(card.id)
+    territoryResizeStart.current = {
+      mx: e.clientX,
+      my: e.clientY,
+      x: territory.x,
+      y: territory.y,
+      width: territory.width,
+      height: territory.height,
+    }
+
+    const onMove = (ev: MouseEvent) => {
+      if (!territoryResizeStart.current) return
+      const dx = (ev.clientX - territoryResizeStart.current.mx) / canvasScale
+      const dy = (ev.clientY - territoryResizeStart.current.my) / canvasScale
+      updateCardTerritory(card.id, {
+        x: territoryResizeStart.current.x,
+        y: territoryResizeStart.current.y,
+        width: territoryResizeStart.current.width + dx,
+        height: territoryResizeStart.current.height + dy,
+      })
+    }
+
+    const onUp = () => {
+      const latestCard = useStore.getState().room?.map_cards.find((item) => item.id === card.id)
+      if (latestCard?.type === 'Location' && latestCard.territory) {
+        commitCardTerritory(card.id, latestCard.territory)
+      }
+      unlockCard(card.id)
+      territoryResizeStart.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [canvasScale, card.id, commitCardTerritory, isLocked, lockCard, territory, unlockCard, updateCardTerritory])
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -93,26 +197,78 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
   return (
     <>
       {/* Territory area (Location cards only) */}
-      {card.type === 'Location' && card.territory && (
+      {territory && (
         <div
+          className="territory-area"
           style={{
             position: 'absolute',
-            left: card.territory.x,
-            top: card.territory.y,
-            width: card.territory.width,
-            height: card.territory.height,
+            left: territory.x,
+            top: territory.y,
+            width: territory.width,
+            height: territory.height,
             background: cfg.color,
-            opacity: 0.1,
-            borderRadius: 0,
             border: `1px dashed ${cfg.color}99`,
-            pointerEvents: 'none',
+            cursor: isLocked ? 'not-allowed' : 'move',
+            zIndex: 0,
           }}
+          onMouseDown={onTerritoryMouseDown}
+          onContextMenu={onContextMenu}
         />
+      )}
+
+      {territory && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              left: territory.x + 8,
+              top: territory.y + 8,
+              maxWidth: Math.max(territory.width - 16, 48),
+              padding: '2px 8px',
+              fontSize: 11,
+              letterSpacing: '0.06em',
+              color: cfg.color,
+              background: `${cfg.color}14`,
+              border: `1px solid ${cfg.color}55`,
+              overflow: 'hidden',
+              pointerEvents: 'none',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              zIndex: 1,
+            }}
+          >
+            {card.title || '疆域'}
+          </div>
+
+          <button
+            title="拖拽调整疆域"
+            style={{
+              position: 'absolute',
+              left: territory.x + territory.width - 22,
+              top: territory.y + territory.height - 22,
+              width: 18,
+              height: 18,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--bg-overlay)',
+              border: '1px solid var(--border-default)',
+              color: 'var(--text-secondary)',
+              cursor: isLocked ? 'not-allowed' : 'nwse-resize',
+              zIndex: 1,
+            }}
+            onMouseDown={onTerritoryResizeMouseDown}
+            onClick={e => e.stopPropagation()}
+          >
+            <Maximize2 size={10} />
+          </button>
+        </>
       )}
 
       {/* Card */}
       <div
         className={`dh-card dh-card--${card.type.toLowerCase()} ${isLocked ? 'dh-card--locked' : ''}`}
+        data-map-card-id={card.id}
         style={{
           position: 'absolute',
           left: card.x,
@@ -121,6 +277,7 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
           height: card.height,
           borderLeft: `4px solid ${cfg.color}`,
           boxShadow: `0 1px 2px rgba(15,23,42,0.12), 0 0 0 2px ${card.player_color}22`,
+          zIndex: 2,
         }}
         onMouseDown={onMouseDown}
         onContextMenu={onContextMenu}
@@ -134,21 +291,17 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
         }} />
 
         <div style={{ padding: '8px 10px 24px' }}>
-          {/* Type badge */}
-          <div style={{ marginBottom: 6 }}>
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-              padding: '2px 7px', borderRadius: 1, fontSize: 9,
-              fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.6px',
-              background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
-            }}>
+          <div className="dh-card__header-row" style={{ paddingRight: 12 }}>
+            <span
+              className="dh-card__type-badge"
+              style={{ background: cfg.bg, color: cfg.color, borderColor: cfg.border }}
+            >
               <cfg.Icon size={9} /> {cfg.label}
             </span>
-          </div>
 
-          {/* Title */}
-          <div className="dh-card__title" style={{ paddingRight: 12 }}>
-            {card.title}
+            <div className="dh-card__title dh-card__title--inline">
+              {card.title}
+            </div>
           </div>
 
           {/* Content (expanded only) */}
@@ -176,7 +329,7 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
         </button>
 
         <button
-          title={`Grid ${card.grid_cols}x${card.grid_rows} / ${card.grid_scale}x`}
+          title={`拖拽调整尺寸 · ${card.grid_cols} × ${card.grid_rows}`}
           style={{
             position: 'absolute',
             bottom: 4,

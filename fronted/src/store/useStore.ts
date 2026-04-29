@@ -1,11 +1,47 @@
 import { create } from 'zustand'
 import { nanoid } from 'nanoid'
-import { assertDhPack, type ClientMessage, type DhCard, type RoomSession, type RoomState } from '@dhgc/shared'
-import type { Annotation, Connection, DrawOption, Toast } from '@/types'
+import {
+  assertDhPack,
+  assertDhRoomBackup,
+  type ClientMessage,
+  type DhCard,
+  type RoomSession,
+  type RoomState,
+} from '@dhgc/shared'
+import type { Annotation, Connection, DrawOption, Rect, Toast } from '@/types'
 import { createRoomRequest, joinRoomRequest, RoomSocketConnection, type ConnectionState } from '@/lib/realtime'
-import { getCardGridSize, snapToGrid } from '@/utils/grid'
+import { normalizeCardDimensions, normalizeTerritoryRect, snapToGrid } from '@/utils/grid'
 
 type ConnectionStatus = ConnectionState
+
+interface ScreenRect {
+  left: number
+  top: number
+  width: number
+  height: number
+}
+
+interface HandDragSnapshot {
+  cardId: string
+  card: DhCard
+  originRect: ScreenRect
+}
+
+interface PlacementAnimation {
+  id: string
+  card: DhCard
+  fromRect: ScreenRect
+  toRect: ScreenRect
+  playerColor?: string
+}
+
+interface RecycleAnimation {
+  id: string
+  card: DhCard
+  fromRect: ScreenRect
+  toRect: ScreenRect
+  playerColor?: string
+}
 
 interface UIState {
   isPlayerPanelOpen: boolean
@@ -13,13 +49,21 @@ interface UIState {
   isExportMenuOpen: boolean
   isImportModalOpen: boolean
   isCreateCardModalOpen: boolean
+  isEditCardModalOpen: boolean
   isRoomSettingsOpen: boolean
+  isCardLibraryOpen: boolean
   isDrawModalOpen: boolean
   isEndCoCreationConfirmOpen: boolean
   isEnteringRoom: boolean
   connectionStatus: ConnectionStatus
   contextMenu: { x: number; y: number; cardId: string } | null
   expandedCardId: string | null
+  editingCardId: string | null
+  connectionDraftFromCardId: string | null
+  connectionEditor: { connectionId?: string; fromCardId: string; toCardId: string } | null
+  draggingHandCard: HandDragSnapshot | null
+  placementAnimation: PlacementAnimation | null
+  recycleAnimation: RecycleAnimation | null
   drawOptions: DrawOption[]
   toasts: Toast[]
   currentPlayerId: string
@@ -37,6 +81,8 @@ interface AppStore extends UIState {
 
   startCoCreation: () => void
   endCoCreation: () => void
+  updateSelectedPacks: (packIds: string[]) => void
+  updateImportsEnabled: (enabled: boolean) => void
 
   endTurn: () => void
   forceSkipTurn: (playerId: string) => void
@@ -45,24 +91,36 @@ interface AppStore extends UIState {
   confirmDraw: (cardId: string) => void
   createCustomCard: (card: Omit<DhCard, 'id'>) => void
   playCard: (cardId: string, x?: number, y?: number) => void
+  beginHandCardDrag: (card: DhCard, originRect: ScreenRect) => void
+  clearHandCardDrag: (cardId?: string) => void
+  triggerPlacementAnimation: (cardId: string, toRect: ScreenRect, playerColor?: string) => void
+  clearPlacementAnimation: () => void
+  triggerRecycleAnimation: (card: DhCard, fromRect: ScreenRect, toRect: ScreenRect, playerColor?: string) => void
+  clearRecycleAnimation: () => void
 
   moveCard: (cardId: string, x: number, y: number) => void
   commitMoveCard: (cardId: string, x: number, y: number) => void
-  resizeCard: (cardId: string, gridScale: number) => void
-  commitResizeCard: (cardId: string, gridScale: number) => void
+  resizeCard: (cardId: string, width: number, height: number) => void
+  commitResizeCard: (cardId: string, width: number, height: number) => void
+  updateCardTerritory: (cardId: string, territory: Rect) => void
+  commitCardTerritory: (cardId: string, territory: Rect) => void
   toggleExpandCard: (cardId: string) => void
-  editCard: (cardId: string, updates: Partial<DhCard>) => void
+  editCard: (cardId: string, updates: Partial<DhCard> & { territory?: Rect }) => void
   deleteCard: (cardId: string) => void
   recycleCard: (cardId: string) => void
   lockCard: (cardId: string) => void
   unlockCard: (cardId: string) => void
 
   addConnection: (conn: Omit<Connection, 'id'>) => void
+  updateConnection: (connectionId: string, updates: Partial<Pick<Connection, 'color' | 'label'>>) => void
   removeConnection: (connId: string) => void
 
   addAnnotation: (ann: Omit<Annotation, 'id'>) => void
   removeAnnotation: (annId: string) => void
   importPack: (value: unknown) => void
+  importRoomBackup: (value: unknown) => void
+  importLibraryPack: (packId: string, packName: string) => void
+  importLibraryCards: (packId: string, cardIds: string[]) => void
 
   setContextMenu: (menu: { x: number; y: number; cardId: string } | null) => void
   setExpandedCard: (id: string | null) => void
@@ -73,12 +131,21 @@ interface AppStore extends UIState {
   closeImportModal: () => void
   openCreateCardModal: () => void
   closeCreateCardModal: () => void
+  openEditCardModal: (cardId: string) => void
+  closeEditCardModal: () => void
   openRoomSettings: () => void
   closeRoomSettings: () => void
+  openCardLibrary: () => void
+  closeCardLibrary: () => void
   openDrawModal: () => void
   closeDrawModal: () => void
   openEndConfirm: () => void
   closeEndConfirm: () => void
+  startConnection: (fromCardId: string) => void
+  completeConnection: (toCardId: string) => void
+  cancelConnection: () => void
+  openConnectionEditor: (value: { connectionId?: string; fromCardId: string; toCardId: string }) => void
+  closeConnectionEditor: () => void
 
   addToast: (message: string, type?: Toast['type']) => void
   removeToast: (id: string) => void
@@ -107,7 +174,7 @@ export const useStore = create<AppStore>((set, get) => {
 
   const disconnectConnection = () => {
     if (activeConnection) {
-      activeConnection.disconnect()
+      activeConnection.dispose()
       activeConnection = null
     }
   }
@@ -219,15 +286,23 @@ export const useStore = create<AppStore>((set, get) => {
     isPlayerPanelOpen: true,
     isHandPanelOpen: true,
     isExportMenuOpen: false,
-    isImportModalOpen: false,
-    isCreateCardModalOpen: false,
-    isRoomSettingsOpen: false,
-    isDrawModalOpen: false,
-    isEndCoCreationConfirmOpen: false,
+  isImportModalOpen: false,
+  isCreateCardModalOpen: false,
+  isEditCardModalOpen: false,
+  isRoomSettingsOpen: false,
+  isCardLibraryOpen: false,
+  isDrawModalOpen: false,
+  isEndCoCreationConfirmOpen: false,
     isEnteringRoom: false,
     connectionStatus: 'idle',
     contextMenu: null,
     expandedCardId: null,
+    editingCardId: null,
+    connectionDraftFromCardId: null,
+    connectionEditor: null,
+    draggingHandCard: null,
+    placementAnimation: null,
+    recycleAnimation: null,
     drawOptions: [],
     toasts: [],
     currentPlayerId: '',
@@ -329,6 +404,14 @@ export const useStore = create<AppStore>((set, get) => {
         connectionStatus: 'idle',
         isDrawModalOpen: false,
         isEndCoCreationConfirmOpen: false,
+        isEditCardModalOpen: false,
+        isCardLibraryOpen: false,
+        editingCardId: null,
+        connectionDraftFromCardId: null,
+        connectionEditor: null,
+        draggingHandCard: null,
+        placementAnimation: null,
+        recycleAnimation: null,
         drawOptions: [],
       })
     },
@@ -340,6 +423,33 @@ export const useStore = create<AppStore>((set, get) => {
     endCoCreation: () => {
       set({ isEndCoCreationConfirmOpen: false })
       sendMessage({ type: 'room.endCoCreation' })
+    },
+
+    updateSelectedPacks: (packIds) => {
+      if (!packIds.length) {
+        get().addToast('请至少选择一套卡包', 'warning')
+        return
+      }
+
+      const sent = sendMessage({
+        type: 'room.updateSelectedPacks',
+        payload: { selectedPackIds: packIds },
+      })
+
+      if (sent) {
+        get().addToast('房间卡包设置已更新', 'success')
+      }
+    },
+
+    updateImportsEnabled: (enabled) => {
+      const sent = sendMessage({
+        type: 'room.updateSettings',
+        payload: { importsEnabled: enabled },
+      })
+
+      if (sent) {
+        get().addToast(enabled ? '已启用导入功能' : '已关闭导入功能', 'success')
+      }
     },
 
     endTurn: () => {
@@ -381,15 +491,90 @@ export const useStore = create<AppStore>((set, get) => {
       })
     },
 
+    beginHandCardDrag: (card, originRect) => {
+      set({
+        draggingHandCard: {
+          cardId: card.id,
+          card,
+          originRect,
+        },
+      })
+    },
+
+    clearHandCardDrag: (cardId) => {
+      set((state) => {
+        if (cardId && state.draggingHandCard?.cardId !== cardId) {
+          return state
+        }
+
+        return { draggingHandCard: null }
+      })
+    },
+
+    triggerPlacementAnimation: (cardId, toRect, playerColor) => {
+      const draggingHandCard = get().draggingHandCard
+      if (!draggingHandCard || draggingHandCard.cardId !== cardId) return
+
+      const animationId = nanoid()
+      set({
+        draggingHandCard: null,
+        placementAnimation: {
+          id: animationId,
+          card: draggingHandCard.card,
+          fromRect: draggingHandCard.originRect,
+          toRect,
+          playerColor,
+        },
+      })
+
+      window.setTimeout(() => {
+        const currentAnimation = get().placementAnimation
+        if (currentAnimation?.id === animationId) {
+          set({ placementAnimation: null })
+        }
+      }, 420)
+    },
+
+    clearPlacementAnimation: () => set({ placementAnimation: null }),
+
+    triggerRecycleAnimation: (card, fromRect, toRect, playerColor) => {
+      const animationId = nanoid()
+      set({
+        recycleAnimation: {
+          id: animationId,
+          card,
+          fromRect,
+          toRect,
+          playerColor,
+        },
+      })
+
+      window.setTimeout(() => {
+        const currentAnimation = get().recycleAnimation
+        if (currentAnimation?.id === animationId) {
+          set({ recycleAnimation: null })
+        }
+      }, 420)
+    },
+
+    clearRecycleAnimation: () => set({ recycleAnimation: null }),
+
     moveCard: (cardId, x, y) => {
       set((state) => ({
         room: state.room ? {
           ...state.room,
-          map_cards: state.room.map_cards.map((card) => card.id === cardId ? {
-            ...card,
-            x: snapToGrid(x),
-            y: snapToGrid(y),
-          } : card),
+          map_cards: state.room.map_cards.map((card) => {
+            if (card.id !== cardId) return card
+
+            const nextX = snapToGrid(x)
+            const nextY = snapToGrid(y)
+
+            return {
+              ...card,
+              x: nextX,
+              y: nextY,
+            }
+          }),
         } : null,
       }))
     },
@@ -401,13 +586,13 @@ export const useStore = create<AppStore>((set, get) => {
       })
     },
 
-    resizeCard: (cardId, gridScale) => {
+    resizeCard: (cardId, width, height) => {
       set((state) => ({
         room: state.room ? {
           ...state.room,
           map_cards: state.room.map_cards.map((card) => {
             if (card.id !== cardId) return card
-            const nextSize = getCardGridSize(card.type, gridScale)
+            const nextSize = normalizeCardDimensions(card.type, width, height)
             return {
               ...card,
               width: nextSize.width,
@@ -421,10 +606,45 @@ export const useStore = create<AppStore>((set, get) => {
       }))
     },
 
-    commitResizeCard: (cardId, gridScale) => {
+    commitResizeCard: (cardId, width, height) => {
+      const normalized = get().room?.map_cards.find((card) => card.id === cardId)
       sendMessage({
         type: 'card.resize.commit',
-        payload: { cardId, gridScale },
+        payload: {
+          cardId,
+          width: normalized?.width ?? width,
+          height: normalized?.height ?? height,
+        },
+      })
+    },
+
+    updateCardTerritory: (cardId, territory) => {
+      set((state) => ({
+        room: state.room ? {
+          ...state.room,
+          map_cards: state.room.map_cards.map((card) => {
+            if (card.id !== cardId || card.type !== 'Location') return card
+            return {
+              ...card,
+              territory: normalizeTerritoryRect(territory, card.width, card.height),
+            }
+          }),
+        } : null,
+      }))
+    },
+
+    commitCardTerritory: (cardId, territory) => {
+      const card = get().room?.map_cards.find((item) => item.id === cardId)
+      if (!card || card.type !== 'Location') return
+
+      sendMessage({
+        type: 'card.edit',
+        payload: {
+          cardId,
+          updates: {
+            territory: normalizeTerritoryRect(territory, card.width, card.height),
+          },
+        },
       })
     },
 
@@ -441,10 +661,13 @@ export const useStore = create<AppStore>((set, get) => {
     },
 
     editCard: (cardId, updates) => {
-      sendMessage({
+      const sent = sendMessage({
         type: 'card.edit',
         payload: { cardId, updates },
       })
+      if (sent) {
+        set({ isEditCardModalOpen: false, editingCardId: null, contextMenu: null })
+      }
     },
 
     deleteCard: (cardId) => {
@@ -508,17 +731,36 @@ export const useStore = create<AppStore>((set, get) => {
     },
 
     addConnection: (conn) => {
-      sendMessage({
+      const sent = sendMessage({
         type: 'connection.add',
         payload: conn,
       })
+      if (sent) {
+        set({ connectionEditor: null, connectionDraftFromCardId: null, contextMenu: null })
+      }
+    },
+
+    updateConnection: (connectionId, updates) => {
+      const sent = sendMessage({
+        type: 'connection.update',
+        payload: { connectionId, updates },
+      })
+      if (sent) {
+        set({ connectionEditor: null, contextMenu: null })
+      }
     },
 
     removeConnection: (connId) => {
-      sendMessage({
+      const sent = sendMessage({
         type: 'connection.remove',
         payload: { connectionId: connId },
       })
+      if (sent) {
+        set((state) => ({
+          connectionEditor: state.connectionEditor?.connectionId === connId ? null : state.connectionEditor,
+          contextMenu: null,
+        }))
+      }
     },
 
     addAnnotation: (ann) => {
@@ -551,6 +793,50 @@ export const useStore = create<AppStore>((set, get) => {
       }
     },
 
+    importRoomBackup: (value) => {
+      try {
+        const backup = assertDhRoomBackup(value)
+        const sent = sendMessage({
+          type: 'room.importRoomBackup',
+          payload: { backup },
+        })
+
+        if (sent) {
+          set({ isImportModalOpen: false })
+          get().addToast(`已导入房间备份：${backup.room.name}`, 'success')
+        }
+      } catch (error) {
+        get().addToast(error instanceof Error ? error.message : '房间备份格式不正确', 'error')
+      }
+    },
+
+    importLibraryPack: (packId, packName) => {
+      const sent = sendMessage({
+        type: 'room.importLibraryPack',
+        payload: { packId },
+      })
+
+      if (sent) {
+        get().addToast(`已追加整包：${packName}`, 'success')
+      }
+    },
+
+    importLibraryCards: (packId, cardIds) => {
+      if (!cardIds.length) {
+        get().addToast('请至少选择一张卡牌', 'warning')
+        return
+      }
+
+      const sent = sendMessage({
+        type: 'room.importCards',
+        payload: { packId, cardIds },
+      })
+
+      if (sent) {
+        get().addToast(`已导入 ${cardIds.length} 张卡牌`, 'success')
+      }
+    },
+
     setContextMenu: (menu) => set({ contextMenu: menu }),
     setExpandedCard: (id) => set({ expandedCardId: id }),
     togglePlayerPanel: () => set((state) => ({ isPlayerPanelOpen: !state.isPlayerPanelOpen })),
@@ -560,12 +846,45 @@ export const useStore = create<AppStore>((set, get) => {
     closeImportModal: () => set({ isImportModalOpen: false }),
     openCreateCardModal: () => set({ isCreateCardModalOpen: true }),
     closeCreateCardModal: () => set({ isCreateCardModalOpen: false }),
+    openEditCardModal: (cardId) => set({ isEditCardModalOpen: true, editingCardId: cardId, contextMenu: null }),
+    closeEditCardModal: () => set({ isEditCardModalOpen: false, editingCardId: null }),
     openRoomSettings: () => set({ isRoomSettingsOpen: true }),
     closeRoomSettings: () => set({ isRoomSettingsOpen: false }),
+    openCardLibrary: () => set({ isCardLibraryOpen: true }),
+    closeCardLibrary: () => set({ isCardLibraryOpen: false }),
     openDrawModal: () => set((state) => ({ isDrawModalOpen: state.drawOptions.length > 0 })),
     closeDrawModal: () => set({ isDrawModalOpen: false }),
     openEndConfirm: () => set({ isEndCoCreationConfirmOpen: true }),
     closeEndConfirm: () => set({ isEndCoCreationConfirmOpen: false }),
+    startConnection: (fromCardId) => {
+      set({ connectionDraftFromCardId: fromCardId, contextMenu: null })
+      get().addToast('请选择目标卡牌以创建连线', 'info')
+    },
+    completeConnection: (toCardId) => {
+      const { connectionDraftFromCardId, room } = get()
+      if (!connectionDraftFromCardId) return
+
+      if (connectionDraftFromCardId === toCardId) {
+        get().addToast('不能将卡牌连接到自己', 'warning')
+        return
+      }
+
+      const existing = room?.connections.find((item) => (
+        item.from_card_id === connectionDraftFromCardId && item.to_card_id === toCardId
+      ))
+
+      set({
+        connectionDraftFromCardId: null,
+        connectionEditor: {
+          connectionId: existing?.id,
+          fromCardId: connectionDraftFromCardId,
+          toCardId,
+        },
+      })
+    },
+    cancelConnection: () => set({ connectionDraftFromCardId: null }),
+    openConnectionEditor: (value) => set({ connectionEditor: value, connectionDraftFromCardId: null, contextMenu: null }),
+    closeConnectionEditor: () => set({ connectionEditor: null, connectionDraftFromCardId: null }),
 
     addToast: (message, type = 'info') => {
       const id = nanoid()

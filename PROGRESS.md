@@ -1,141 +1,94 @@
 # 匕首之心团前共创工具进度
 
-更新时间：2026-04-28
+更新时间：2026-04-29
 
 ## 当前阶段
 
-项目已从纯 PRD/方案阶段推进到“可运行前端 + 可联调实时后端 + 首轮真实房间同步打通”的阶段。
+项目已经从“纯 PRD / 技术方案”阶段推进到“可运行前端 + 可联调实时后端 + 首轮多人交互闭环”的阶段。
 
-当前重点已从“接后端入口”推进到“补齐联调细节与多人稳定性”：前端已经不再依赖创建/加入房间的 mock 流程，下一步更偏向多人 smoke test、断线恢复与剩余交互收口。
+当前重点不再是搭壳，而是持续补齐交互细节、统一文案与视觉行为，并通过 smoke test 和本地构建保证已有链路稳定。
 
-## 前端状态
+## 已完成
+
+### 前端
 
 目录：`fronted`
 
-已完成：
+- React + TypeScript + Vite 前端工程已可稳定运行。
+- 已具备创建房间、加入房间、房间页、顶部栏、玩家面板、手牌区、抽牌弹窗、自定义卡片弹窗、编辑卡片弹窗、导入导出入口、卡包库等核心界面。
+- 地图支持平移、缩放、网格背景、卡片拖拽、卡片展开、地点疆域拖拽与缩放、连线显示、标注显示。
+- 地图卡片已经切换为基于网格尺寸的自由宽高方案，不再限制等比缩放。
+- 手牌支持拖拽上图，落点会按卡牌中心计算并吸附网格。
+- 地点卡打出后会自动创建疆域范围，且疆域与卡片主体分离控制。
+- 已完成前端 realtime client，对接 Worker HTTP API 和房间 WebSocket。
+- 进入房间后会等待 `room.snapshot` 初始化，再通过 `room.updated` 增量覆盖当前房间状态。
+- 已接通并验证开始共创、结束共创、结束回合、强制跳过、抽牌三选一、确认抽牌、创建自定义卡、打牌、移动、缩放、地点疆域编辑、导入卡包、导出房间备份等核心动作。
 
-- React + TypeScript + Vite 前端工程已可运行。
-- 有创建/加入房间入口、房间页、顶部栏、玩家面板、手牌区、抽牌弹窗、自定义卡弹窗、导入/导出弹窗。
-- 地图支持平移、缩放、网格背景、卡片移动、卡片展开、连接线展示、标注展示。
-- 视觉方向已从深色玻璃态调整为亮色 Figma 白板风格。
-- 地图卡片已改为基于网格尺寸：不同卡牌类型有默认网格宽高。
-- 手牌支持拖拽到地图，落点吸附网格。
-- 地图卡片支持右下角按网格等比例缩放。
-- 已新增前端 realtime client，默认通过 `VITE_REALTIME_API_BASE`（未配置时回落到 `http://127.0.0.1:8787`）连接后端。
-- 创建房间 / 加入房间已改为调用后端 HTTP API，不再走本地 mock 初始化。
-- 进入房间后已改为等待 WebSocket `room.snapshot`，后续通过 `room.updated` 覆盖房间状态。
-- 已完成首轮核心动作联调：开始/结束共创、结束回合、强制跳过、抽牌三选一、确认抽牌、创建自定义卡、打牌、移动卡牌、缩放卡牌、导入卡包。
-- `.dhroom.json` 房间备份导出已切到后端接口。
+### 最近补充修复
 
-已验证：
+- 卡片编辑弹窗修改的 `style` 颜色现在会正确作用到地图卡片、地点疆域、手牌、抽牌预览以及打出 / 回收动画，不再被类型默认色覆盖。
+- 卡包库中的 `Location / NPC / Feature` 展示文案已经统一替换为中文“地点 / 人物 / 特色”。
+- 连线关系标签已经改为沿曲线中段计算位置；当两张卡距离较近时，标签会自动外移，并作为独立上层气泡渲染，避免被卡片遮挡或看不见。
+
+### 后端
+
+目录：`apps/realtime`
+
+- 已完成 Cloudflare Worker + Durable Object 房间实时后端。
+- 已完成共享协议包 `packages/shared`，集中管理类型、协议、网格工具和 JSON 校验。
+- 已支持房间创建、加入、短期 session token、WebSocket 连接、快照初始化、在线 / 离线、房主自动转移。
+- 已支持开始共创、结束共创、回合推进、强制跳过、抽牌三选一、确认抽牌、创建卡、打牌、移动、缩放、地点疆域提交、软锁、解锁、编辑、删除、回收。
+- 已支持连线、标注、导入 `.dhpack.json`、导出 `.dhroom.json`。
+- 已提供 `schema.sql`，为后续 D1 持久化预留表结构。
+
+## 验证
+
+前端构建：
 
 ```powershell
 cd d:\Dql\Desktop\dhgc\fronted
 npm run build
-npm run lint
 ```
 
-端到端 smoke test 已通过（31/31）：
+后端类型检查：
+
+```powershell
+cd d:\Dql\Desktop\dhgc
+npm run realtime:typecheck
+```
+
+端到端 smoke test：
 
 ```powershell
 cd d:\Dql\Desktop\dhgc
 node smoke-test.mjs
 ```
 
-覆盖链路：创建房间 → 加入房间 → WebSocket 双端连接 → 开始共创（发牌 3 张） → 抽牌三选一 → 打牌到地图 → 锁定+移动卡牌 → 缩放卡牌 → 结束回合 → 强制跳过 → 创建自定义卡 → 导出 .dhroom.json → 结束共创（回收手牌） → 重连
+当前 smoke test 覆盖链路包括：
 
-已知问题：
+- 创建房间
+- 加入房间
+- WebSocket 双端连接
+- 开始共创并发初始手牌
+- 抽牌三选一
+- 打牌到地图
+- 锁定并移动卡牌
+- 缩放卡牌
+- 创建自定义卡
+- 导出 `.dhroom.json`
+- 结束共创并回收手牌
+- 重连
 
-- 部分中文文案仍存在编码乱码，需要后续统一修复。
-- 视觉仍需根据最终 Figma 稿继续细修。
-- 当前画布实现是自建 DOM 网格，不是技术方案中提到的 React Flow，后续是否迁移需要再评估。
-- ~~连接层目前还没有自动重连、断线恢复提示细化和 session 持久化。~~ 已完成：自动重连（指数退避，max 30s，最多 15 次）、TopBar 连接状态指示器（重连中/已断开+手动重连按钮）、RoomPage 重连横幅、online/offline 事件监听、beforeunload 清理。
-- 卡片拖拽/缩放现在采用“前端本地预览 + WebSocket commit”的方式，仍需做多人实测验证同步手感。
-- 连接线、标注、编辑等功能虽然已有协议与 store action，但还缺少完整的端到端交互验证。
+## 已知问题
 
-## 后端状态
+- 部分旧中文文案仍有历史编码遗留，需要继续做统一清理。
+- 目前主要依赖 smoke test、typecheck 和构建验证，CI 级自动化测试仍不足。
+- 卡片拖拽 / 缩放 / 地点疆域编辑虽然已采用“前端预览 + WebSocket commit”模式，但仍需要继续做多人实机验证手感。
+- 连线、标注、卡片编辑等交互虽然已经打通，但还可以继续补更细的多人协作验证场景。
 
-目录：`apps/realtime`
+## 下一步建议
 
-已完成：
-
-- 新增 Cloudflare Worker + Durable Object 后端工程。
-- 新增 `packages/shared`，集中维护共享类型、WebSocket 协议、网格工具和基础 JSON 校验。
-- Worker API 已包含：
-  - `GET /api/health`
-  - `POST /api/rooms`
-  - `POST /api/rooms/join`
-  - `GET /api/rooms/:inviteCode/export/dhroom`
-  - `GET /api/rooms/:inviteCode/ws?token=...`
-- Durable Object 已维护单房间实时状态。
-- 已支持房间创建、加入、短期 session token、WebSocket snapshot、玩家在线/离线、房主自动转移。
-- 已支持开始共创、结束共创、回合推进、强制跳过、抽牌三选一、确认抽牌、打牌、移动卡牌、缩放卡牌、软锁、解锁、编辑、删除、回收。
-- 已支持连接线、标注、导入 `.dhpack.json`、导出 `.dhroom.json`。
-- 新增 `schema.sql`，记录后续 D1 持久化表结构。
-
-已验证：
-
-```powershell
-cd d:\Dql\Desktop\dhgc
-npm install
-npm run realtime:typecheck
-```
-
-本地 Wrangler smoke test 已跑通：
-
-- 健康检查成功。
-- 创建房间成功。
-- 第二名玩家加入成功。
-- `.dhroom.json` 导出成功。
-- WebSocket 首包 `room.snapshot` 成功。
-- WebSocket `ping` / `pong` 成功。
-- `room.startCoCreation` / `card.draw` / `card.draw.confirm` 共创链路成功。
-
-已知问题：
-
-- D1 目前只有 schema，实际持久化暂时使用 Durable Object storage 快照。
-- session secret 仍是开发默认值，部署前必须替换。
-- ~~尚未接前端。~~ 已通过 smoke test 验证前后端联调全部核心链路（31/31 通过）。
-- 缺少自动化测试脚本（CI 级别），当前主要依靠 smoke test 和 typecheck。
-- WebSocket 协议已有 TypeScript 类型，但还没有运行时完整 schema 校验。
-
-## 当前联调入口
-
-启动后端：
-
-```powershell
-cd d:\Dql\Desktop\dhgc
-npm run realtime:dev
-```
-
-启动前端：
-
-```powershell
-cd d:\Dql\Desktop\dhgc\fronted
-npm run dev
-```
-
-推荐下一步：
-
-1. 跑一次真实双端 / 多标签页 smoke test，验证创建、加入、抽牌、打牌、拖拽、缩放、结束回合的联动链路。
-2. 为 WebSocket 增加断线提示、自动重连或手动重连入口。
-3. 补齐连接线、标注、卡片编辑等剩余交互的多人联调验证。
-4. 增加前端环境变量说明与最小联调文档，方便他人本地启动。
-5. 视联调结果补自动化测试，至少覆盖 HTTP 创建/加入和核心 WebSocket 消息流程。
-
-## 提交范围说明
-
-本次提交应包含：
-
-- `fronted` 当前前端原型与近期交互/视觉调整。
-- `apps/realtime` 后端工程。
-- `packages/shared` 共享协议包。
-- 根目录 npm workspace 配置与 lockfile。
-- 本进度文档。
-
-不应包含：
-
-- 本地 `node_modules`。
-- Wrangler 本地状态 `.wrangler`。
-- smoke test 日志文件。
-- 与本轮开发无关的既有文档重命名/未跟踪文件。
+1. 跑一轮真实双端或多标签页多人 smoke test，重点看回合、打牌、锁定、疆域编辑和重连恢复。
+2. 继续清理剩余旧文案与编码问题，统一产品内中文表达。
+3. 补前端环境变量与本地联调说明，降低他人启动成本。
+4. 逐步补齐自动化测试，至少覆盖房间创建 / 加入和核心 WebSocket 消息流。

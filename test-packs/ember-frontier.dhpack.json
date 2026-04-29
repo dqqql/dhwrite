@@ -1,0 +1,77 @@
+{
+  "format": "dhpack",
+  "version": 1,
+  "pack_name": "余烬边境",
+  "cards": [
+    {
+      "id": "ember-location-ashwatch",
+      "type": "Location",
+      "title": "灰望烽台",
+      "content": "烧焦山脊上的旧烽火塔仍会在无风夜里自行点亮，提醒边境居民某种未被扑灭的战争。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "ember-location-coalrail",
+      "type": "Location",
+      "title": "煤轨集镇",
+      "content": "一条运煤窄轨穿过集镇中心，列车每次停靠都会带来不同雇主的委托与威胁。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "ember-location-scorchfield",
+      "type": "Location",
+      "title": "烬原试验场",
+      "content": "大地裂开规则的方格，像是有人在此反复演算战术与献祭公式。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "ember-location-redspring",
+      "type": "Location",
+      "title": "赤泉避难所",
+      "content": "地下热泉供养着最后一批边民，也让每位访客都必须宣誓不向外泄露入口。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "ember-npc-cindermarshal",
+      "type": "NPC",
+      "title": "烬纹镇务官",
+      "content": "他用烧伤覆盖旧军衔，坚称边境需要的是秩序，而不是来自王都的仁慈。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "ember-npc-railwidow",
+      "type": "NPC",
+      "title": "铁轨寡妇",
+      "content": "掌握补给线路的寡妇经营着情报与黑市，她会记住每个欠她煤票的人。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "ember-npc-saltscout",
+      "type": "NPC",
+      "title": "盐风侦骑",
+      "content": "这名侦骑总能先一步嗅到沙暴与伏兵，却拒绝解释他听命于谁。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "ember-feature-bloodcharter",
+      "type": "Feature",
+      "title": "灰契征募令",
+      "content": "任何在边境立功的人都能换取新的身份，但他们过去的一切也会被官方一并烧毁。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "ember-feature-cinderstorm",
+      "type": "Feature",
+      "title": "余烬风暴季",
+      "content": "每逢风暴来临，地图、脚印和谎言都会被重新书写一次。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "ember-feature-orepulse",
+      "type": "Feature",
+      "title": "赤矿心跳",
+      "content": "地下矿脉会像心脏一样脉动，靠近的人会梦见同一座尚未建成的堡垒。",
+      "style": "#a855f7"
+    }
+  ]
+}

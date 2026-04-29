@@ -1,9 +1,14 @@
-import type { Annotation, Connection, DhCard, DhPack, Rect, RoomState } from './types'
+import type { Annotation, Connection, DhCard, DhPack, DhRoomBackup, Rect, RoomState } from './types'
 
 export type ClientMessage =
   | { type: 'room.startCoCreation'; requestId?: string; payload?: Record<string, never> }
   | { type: 'room.endCoCreation'; requestId?: string; payload?: Record<string, never> }
+  | { type: 'room.updateSelectedPacks'; requestId?: string; payload: { selectedPackIds: string[] } }
+  | { type: 'room.updateSettings'; requestId?: string; payload: { importsEnabled: boolean } }
   | { type: 'room.importPack'; requestId?: string; payload: { pack: DhPack } }
+  | { type: 'room.importLibraryPack'; requestId?: string; payload: { packId: string } }
+  | { type: 'room.importCards'; requestId?: string; payload: { packId: string; cardIds: string[] } }
+  | { type: 'room.importRoomBackup'; requestId?: string; payload: { backup: DhRoomBackup } }
   | { type: 'turn.end'; requestId?: string; payload?: Record<string, never> }
   | { type: 'turn.forceSkip'; requestId?: string; payload: { playerId: string } }
   | { type: 'card.draw'; requestId?: string; payload?: Record<string, never> }
@@ -11,13 +16,14 @@ export type ClientMessage =
   | { type: 'card.create'; requestId?: string; payload: { card: Omit<DhCard, 'id' | 'is_custom'> } }
   | { type: 'card.play'; requestId?: string; payload: { cardId: string; x: number; y: number } }
   | { type: 'card.move.commit'; requestId?: string; payload: { cardId: string; x: number; y: number } }
-  | { type: 'card.resize.commit'; requestId?: string; payload: { cardId: string; gridScale: number } }
+  | { type: 'card.resize.commit'; requestId?: string; payload: { cardId: string; width: number; height: number } }
   | { type: 'card.lock'; requestId?: string; payload: { cardId: string } }
   | { type: 'card.unlock'; requestId?: string; payload: { cardId: string } }
   | { type: 'card.edit'; requestId?: string; payload: { cardId: string; updates: Partial<DhCard> & { territory?: Rect } } }
   | { type: 'card.delete'; requestId?: string; payload: { cardId: string } }
   | { type: 'card.recycle'; requestId?: string; payload: { cardId: string } }
   | { type: 'connection.add'; requestId?: string; payload: Omit<Connection, 'id'> }
+  | { type: 'connection.update'; requestId?: string; payload: { connectionId: string; updates: Partial<Pick<Connection, 'color' | 'label'>> } }
   | { type: 'connection.remove'; requestId?: string; payload: { connectionId: string } }
   | { type: 'annotation.add'; requestId?: string; payload: Omit<Annotation, 'id'> }
   | { type: 'annotation.remove'; requestId?: string; payload: { annotationId: string } }

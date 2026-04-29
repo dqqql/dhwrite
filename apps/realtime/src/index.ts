@@ -1,6 +1,14 @@
 import {
   assertDhPack,
+  assertDhRoomBackup,
+  createBuiltInPackLibrary,
+  createDeckFromBuiltInPackIds,
+  createLocationTerritory,
   getCardGridSize,
+  isBuiltInPackId,
+  normalizeCardDimensions,
+  normalizeBuiltInPackSelection,
+  normalizeTerritoryRect,
   safeJsonParse,
   snapToGrid,
   type ClientMessage,
@@ -9,6 +17,7 @@ import {
   type DhRoomBackup,
   type MapCard,
   type Player,
+  type RoomPackLibraryItem,
   type RoomState,
 } from '../../../packages/shared/src/index'
 
@@ -185,12 +194,8 @@ export class RoomDurableObject {
 
     const now = new Date()
     const host = makePlayer(body.playerId, body.nickname, PLAYER_COLORS[0], true, now)
-    const deck = shuffle(OFFICIAL_DECK.map(card => ({
-      ...card,
-      id: id('card'),
-      is_custom: false,
-      pack_id: 'official-core',
-    })))
+    const selectedPackIds = normalizeBuiltInPackSelection(body.selectedPackIds, true)
+    const deck = shuffle(createDeckFromBuiltInPackIds(selectedPackIds))
 
     this.room = {
       room_id: body.inviteCode,
@@ -208,7 +213,11 @@ export class RoomDurableObject {
       map_cards: [],
       connections: [],
       annotations: [],
-      selected_pack_ids: body.selectedPackIds.length ? body.selectedPackIds : ['official-core'],
+      pack_library: createBuiltInPackLibrary(),
+      settings: {
+        imports_enabled: false,
+      },
+      selected_pack_ids: selectedPackIds,
       drawn_this_turn: {},
       snapshot_version: 0,
       updated_at: now.toISOString(),
@@ -321,6 +330,18 @@ export class RoomDurableObject {
         await this.commit('room.endCoCreation')
         return
 
+      case 'room.updateSelectedPacks':
+        this.requireHost(player)
+        this.updateSelectedPacks(message.payload.selectedPackIds)
+        await this.commit('room.updateSelectedPacks')
+        return
+
+      case 'room.updateSettings':
+        this.requireHost(player)
+        this.updateSettings(message.payload.importsEnabled)
+        await this.commit('room.updateSettings')
+        return
+
       case 'turn.end':
         this.requireCoCreation()
         this.advanceTurn()
@@ -378,7 +399,7 @@ export class RoomDurableObject {
 
       case 'card.move.commit':
         this.requireUnlockedOrOwner(player, message.payload.cardId)
-        this.updateMapCard(message.payload.cardId, { x: snapToGrid(message.payload.x), y: snapToGrid(message.payload.y) })
+        this.moveMapCard(message.payload.cardId, snapToGrid(message.payload.x), snapToGrid(message.payload.y))
         this.unlockCard(player, message.payload.cardId)
         await this.commit('card.move.commit')
         return
@@ -386,16 +407,24 @@ export class RoomDurableObject {
       case 'card.resize.commit': {
         this.requireUnlockedOrOwner(player, message.payload.cardId)
         const card = this.requireMapCard(message.payload.cardId)
-        this.updateMapCard(card.id, getCardGridSize(card.type, message.payload.gridScale))
+        this.resizeMapCard(card.id, message.payload.width, message.payload.height)
         await this.commit('card.resize.commit')
         return
       }
 
-      case 'card.edit':
+      case 'card.edit': {
         this.requireUnlockedOrOwner(player, message.payload.cardId)
-        this.updateMapCard(message.payload.cardId, message.payload.updates)
+        const card = this.requireMapCard(message.payload.cardId)
+        const updates: Partial<MapCard> = { ...message.payload.updates }
+
+        if (card.type === 'Location' && updates.territory) {
+          updates.territory = normalizeTerritoryRect(updates.territory, card.width, card.height)
+        }
+
+        this.updateMapCard(message.payload.cardId, updates)
         await this.commit('card.edit')
         return
+      }
 
       case 'card.delete':
         if (room.mode === 'co-creation') throw new Error('Recycle cards during co-creation instead of deleting them')
@@ -412,8 +441,13 @@ export class RoomDurableObject {
         return
 
       case 'connection.add':
-        room.connections.push({ ...message.payload, id: id('conn') })
+        this.addConnection(message.payload)
         await this.commit('connection.add')
+        return
+
+      case 'connection.update':
+        this.updateConnection(message.payload.connectionId, message.payload.updates)
+        await this.commit('connection.update')
         return
 
       case 'connection.remove':
@@ -432,9 +466,33 @@ export class RoomDurableObject {
         return
 
       case 'room.importPack': {
+        this.requireHost(player)
+        this.requireImportsEnabled()
         const pack = assertDhPack(message.payload.pack)
         this.importPack(pack)
         await this.commit('room.importPack')
+        return
+      }
+
+      case 'room.importLibraryPack':
+        this.requireHost(player)
+        this.requireImportsEnabled()
+        this.importLibraryPack(message.payload.packId)
+        await this.commit('room.importLibraryPack')
+        return
+
+      case 'room.importCards':
+        this.requireImportsEnabled()
+        this.importCards(message.payload.packId, message.payload.cardIds)
+        await this.commit('room.importCards')
+        return
+
+      case 'room.importRoomBackup': {
+        this.requireHost(player)
+        this.requireImportsEnabled()
+        const backup = assertDhRoomBackup(message.payload.backup)
+        this.importRoomBackup(backup)
+        await this.commit('room.importRoomBackup')
         return
       }
     }
@@ -442,12 +500,24 @@ export class RoomDurableObject {
 
   private startCoCreation(): void {
     const room = this.requireRoom()
+    const onlinePlayers = room.players.filter(item => item.is_online)
+    const openingHandSize = 5
+    const requiredCards = onlinePlayers.length * openingHandSize
+
+    if (room.deck.length < requiredCards) {
+      throw new Error(`Not enough cards in deck to start co-creation for ${onlinePlayers.length} players`)
+    }
+
     room.mode = 'co-creation'
     room.drawn_this_turn = {}
     room.current_turn_player_id = this.nextOnlinePlayer(room.turn_order[0] ?? null)
 
-    for (const player of room.players.filter(item => item.is_online)) {
-      room.hands[player.id] = [...(room.hands[player.id] ?? []), ...room.deck.splice(0, 3)]
+    for (const playerId of Object.keys(room.hands)) {
+      room.hands[playerId] = []
+    }
+
+    for (const player of onlinePlayers) {
+      room.hands[player.id] = room.deck.splice(0, openingHandSize)
     }
   }
 
@@ -483,6 +553,10 @@ export class RoomDurableObject {
       is_expanded: false,
     }
 
+    if (card.type === 'Location') {
+      mapCard.territory = createLocationTerritory(mapCard.x, mapCard.y, mapCard.width, mapCard.height)
+    }
+
     room.hands[player.id] = hand.filter(item => item.id !== cardId)
     room.map_cards.push(mapCard)
   }
@@ -502,17 +576,212 @@ export class RoomDurableObject {
   private importPack(pack: DhPack): void {
     const room = this.requireRoom()
     const packId = id('pack')
-    const cards = pack.cards.map(card => ({
-      id: card.id ?? id('card'),
+    const libraryPack: RoomPackLibraryItem = {
+      id: packId,
+      pack_name: pack.pack_name,
+      source: 'imported',
+      cards: pack.cards.map((card, index) => ({
+        id: card.id ?? `${packId}:card:${index}`,
+        type: card.type,
+        title: card.title,
+        content: card.content,
+        style: card.style,
+      })),
+    }
+    const cards = this.instantiatePackCards(libraryPack)
+
+    room.pack_library.push(libraryPack)
+    if (!room.selected_pack_ids.includes(packId)) {
+      room.selected_pack_ids.push(packId)
+    }
+    room.deck = shuffle([...room.deck, ...cards])
+  }
+
+  private importLibraryPack(packId: string): void {
+    const room = this.requireRoom()
+    const pack = this.requirePackLibraryItem(packId)
+    room.deck = shuffle([...room.deck, ...this.instantiatePackCards(pack, true)])
+  }
+
+  private importCards(packId: string, cardIds: string[]): void {
+    if (!cardIds.length) throw new Error('Select at least one card to import')
+
+    const room = this.requireRoom()
+    const pack = this.requirePackLibraryItem(packId)
+    const allowedCardIds = new Set(cardIds)
+    const selectedCards = pack.cards.filter((card) => allowedCardIds.has(card.id))
+
+    if (!selectedCards.length) throw new Error('Selected cards were not found in the pack')
+
+    room.deck = shuffle([...room.deck, ...selectedCards.map((card) => ({
+      id: id('card'),
       type: card.type,
       title: card.title,
       content: card.content,
       style: card.style,
       is_custom: false,
-      pack_id: packId,
+      pack_id: this.resolveImportedDeckPackId(pack, true),
+    }))])
+  }
+
+  private importRoomBackup(backup: DhRoomBackup): void {
+    const room = this.requireRoom()
+    const activePlayers = room.players
+    const hostPlayerId = room.host_player_id
+    const nicknameToPlayer = new Map(activePlayers.map((player) => [player.nickname, player]))
+    const hands: Record<string, DhCard[]> = Object.fromEntries(activePlayers.map((player) => [player.id, []]))
+    const fallbackDeck: DhCard[] = []
+
+    for (const hand of backup.session.hands) {
+      const player = nicknameToPlayer.get(hand.owner)
+      if (player) {
+        hands[player.id] = [...hands[player.id], ...structuredClone(hand.cards)]
+      } else {
+        fallbackDeck.push(...structuredClone(hand.cards))
+      }
+    }
+
+    const importedLibrary = backup.library?.packs?.length
+      ? structuredClone(backup.library.packs)
+      : createBuiltInPackLibrary()
+    const importedSelectedPackIds = backup.library?.selected_pack_ids?.length
+      ? [...backup.library.selected_pack_ids]
+      : [...room.selected_pack_ids]
+    const deck = structuredClone(backup.session.deck ?? [])
+    const turnOrder = backup.session.turn_order
+      .map((nickname) => nicknameToPlayer.get(nickname)?.id)
+      .filter((playerId): playerId is string => Boolean(playerId))
+
+    for (const player of activePlayers) {
+      if (!turnOrder.includes(player.id)) {
+        turnOrder.push(player.id)
+      }
+    }
+
+    const currentTurnPlayerId = backup.session.current_turn_player
+      ? nicknameToPlayer.get(backup.session.current_turn_player)?.id ?? null
+      : null
+
+    room.room_name = backup.room.name || room.room_name
+    room.mode = backup.session.mode
+    room.current_turn_player_id = currentTurnPlayerId
+    room.turn_order = turnOrder
+    room.hands = hands
+    room.deck = shuffle([...deck, ...fallbackDeck])
+    room.map_cards = structuredClone(backup.map.cards)
+    room.connections = structuredClone(backup.map.connections)
+    room.annotations = structuredClone(backup.map.annotations)
+    room.pack_library = importedLibrary
+    room.selected_pack_ids = importedSelectedPackIds
+    room.settings = backup.settings ?? room.settings
+    room.host_player_id = hostPlayerId
+    room.players = activePlayers.map((player) => ({
+      ...player,
+      is_host: player.id === hostPlayerId,
     }))
-    room.selected_pack_ids.push(packId)
-    room.deck = shuffle([...room.deck, ...cards])
+    room.drawn_this_turn = Object.fromEntries(activePlayers.map((player) => [player.id, false]))
+    this.pendingDraws.clear()
+  }
+
+  private updateSelectedPacks(nextBuiltInPackIds: string[]): void {
+    const room = this.requireRoom()
+    if (room.mode === 'co-creation') {
+      throw new Error('Cannot change selected packs during co-creation')
+    }
+
+    const selectedBuiltInPackIds = normalizeBuiltInPackSelection(nextBuiltInPackIds, false)
+    if (!selectedBuiltInPackIds.length) {
+      throw new Error('Select at least one built-in pack')
+    }
+
+    const importedPackIds = room.selected_pack_ids.filter((packId) => !isBuiltInPackId(packId))
+    room.selected_pack_ids = [...selectedBuiltInPackIds, ...importedPackIds]
+    this.rebuildDeckFromSelectedPacks(selectedBuiltInPackIds)
+  }
+
+  private updateSettings(importsEnabled: boolean): void {
+    const room = this.requireRoom()
+    room.settings = {
+      ...room.settings,
+      imports_enabled: importsEnabled,
+    }
+  }
+
+  private rebuildDeckFromSelectedPacks(selectedBuiltInPackIds: string[]): void {
+    const room = this.requireRoom()
+    const reservedBuiltInCardIds = new Set<string>()
+
+    for (const card of room.map_cards) {
+      if (card.pack_id && isBuiltInPackId(card.pack_id)) {
+        reservedBuiltInCardIds.add(card.id)
+      }
+    }
+
+    for (const hand of Object.values(room.hands)) {
+      for (const card of hand) {
+        if (card.pack_id && isBuiltInPackId(card.pack_id)) {
+          reservedBuiltInCardIds.add(card.id)
+        }
+      }
+    }
+
+    const builtInDeck = createDeckFromBuiltInPackIds(selectedBuiltInPackIds)
+      .filter((card) => !reservedBuiltInCardIds.has(card.id))
+    const importedAndCustomDeck = room.deck.filter((card) => !card.pack_id || !isBuiltInPackId(card.pack_id))
+
+    room.deck = shuffle([...builtInDeck, ...importedAndCustomDeck])
+  }
+
+  private instantiatePackCards(pack: RoomPackLibraryItem, manualImport = false): DhCard[] {
+    return pack.cards.map((card) => ({
+      id: id('card'),
+      type: card.type,
+      title: card.title,
+      content: card.content,
+      style: card.style,
+      is_custom: false,
+      pack_id: this.resolveImportedDeckPackId(pack, manualImport),
+    }))
+  }
+
+  private resolveImportedDeckPackId(pack: RoomPackLibraryItem, manualImport: boolean): string {
+    if (!manualImport || pack.source !== 'built-in') return pack.id
+    return `manual:${pack.id}`
+  }
+
+  private addConnection(connection: { from_card_id: string; to_card_id: string; color: 'red' | 'green' | 'gray'; label?: string }): void {
+    const room = this.requireRoom()
+    this.assertConnectionEndpoints(connection.from_card_id, connection.to_card_id)
+
+    const exists = room.connections.some((item) => (
+      item.from_card_id === connection.from_card_id && item.to_card_id === connection.to_card_id
+    ))
+    if (exists) {
+      throw new Error('Connection already exists between these cards')
+    }
+
+    room.connections.push({
+      id: id('conn'),
+      from_card_id: connection.from_card_id,
+      to_card_id: connection.to_card_id,
+      color: connection.color,
+      label: cleanOptionalText(connection.label, 40),
+    })
+  }
+
+  private updateConnection(connectionId: string, updates: Partial<{ color: 'red' | 'green' | 'gray'; label?: string }>): void {
+    const room = this.requireRoom()
+    const index = room.connections.findIndex((item) => item.id === connectionId)
+    if (index < 0) throw new Error('Unknown connection')
+
+    const existing = room.connections[index]
+    room.connections[index] = {
+      ...existing,
+      ...(updates.color ? { color: updates.color } : {}),
+      ...(Object.prototype.hasOwnProperty.call(updates, 'label')
+        ? { label: cleanOptionalText(updates.label, 40) }
+        : {}),
+    }
   }
 
   private lockCard(player: Player, cardId: string): void {
@@ -534,6 +803,15 @@ export class RoomDurableObject {
   private updateMapCard(cardId: string, updates: Partial<MapCard>): void {
     const room = this.requireRoom()
     room.map_cards = room.map_cards.map(card => card.id === cardId ? { ...card, ...updates } : card)
+  }
+
+  private moveMapCard(cardId: string, x: number, y: number): void {
+    this.updateMapCard(cardId, { x, y })
+  }
+
+  private resizeMapCard(cardId: string, width: number, height: number): void {
+    const card = this.requireMapCard(cardId)
+    this.updateMapCard(cardId, normalizeCardDimensions(card.type, width, height))
   }
 
   private advanceTurn(skipPlayerId?: string): void {
@@ -608,6 +886,7 @@ export class RoomDurableObject {
         turn_order: room.turn_order
           .map(id => room.players.find(player => player.id === id)?.nickname)
           .filter((name): name is string => Boolean(name)),
+        deck: room.deck,
         hands: Object.entries(room.hands).map(([ownerId, cards]) => ({
           owner: room.players.find(player => player.id === ownerId)?.nickname ?? ownerId,
           cards,
@@ -618,6 +897,11 @@ export class RoomDurableObject {
         connections: room.connections,
         annotations: room.annotations,
       },
+      library: {
+        packs: room.pack_library,
+        selected_pack_ids: room.selected_pack_ids,
+      },
+      settings: room.settings,
       players: room.players.map(player => ({
         id: player.id,
         nickname: player.nickname,
@@ -641,7 +925,8 @@ export class RoomDurableObject {
 
   private async load(): Promise<RoomState | null> {
     if (this.room) return this.room
-    this.room = await this.ctx.storage.get<RoomState>('room') ?? null
+    const storedRoom = await this.ctx.storage.get<RoomState>('room') ?? null
+    this.room = storedRoom ? this.migrateRoomState(storedRoom) : null
     return this.room
   }
 
@@ -665,6 +950,30 @@ export class RoomDurableObject {
     return this.room
   }
 
+  private migrateRoomState(room: RoomState): RoomState {
+    const migrated = room as RoomState & {
+      pack_library?: RoomPackLibraryItem[]
+      settings?: { imports_enabled?: boolean }
+    }
+    const packLibrary = migrated.pack_library?.length ? migrated.pack_library : createBuiltInPackLibrary()
+    const importedPackIds = new Set(packLibrary.filter((pack) => pack.source === 'imported').map((pack) => pack.id))
+    const builtInSelection = normalizeBuiltInPackSelection(room.selected_pack_ids, false)
+    const importedSelection = (room.selected_pack_ids ?? []).filter((packId) => importedPackIds.has(packId))
+    const selectedPackIds = [
+      ...(builtInSelection.length ? builtInSelection : normalizeBuiltInPackSelection(undefined, true)),
+      ...importedSelection,
+    ]
+
+    return {
+      ...room,
+      pack_library: packLibrary,
+      settings: {
+        imports_enabled: migrated.settings?.imports_enabled ?? false,
+      },
+      selected_pack_ids: Array.from(new Set(selectedPackIds)),
+    }
+  }
+
   private requirePlayer(playerId: string): Player {
     const player = this.requireRoom().players.find(item => item.id === playerId)
     if (!player) throw new Error('Unknown player')
@@ -677,8 +986,20 @@ export class RoomDurableObject {
     return card
   }
 
+  private requirePackLibraryItem(packId: string): RoomPackLibraryItem {
+    const pack = this.requireRoom().pack_library.find((item) => item.id === packId)
+    if (!pack) throw new Error('Unknown pack')
+    return pack
+  }
+
   private requireHost(player: Player): void {
     if (player.id !== this.requireRoom().host_player_id) throw new Error('Host permission required')
+  }
+
+  private requireImportsEnabled(): void {
+    if (!this.requireRoom().settings.imports_enabled) {
+      throw new Error('Import feature is disabled in room settings')
+    }
   }
 
   private requireCoCreation(): void {
@@ -695,6 +1016,15 @@ export class RoomDurableObject {
     if (card.locked_by_player_id && card.locked_by_player_id !== player.id) {
       throw new Error('Card is locked by another player')
     }
+  }
+
+  private assertConnectionEndpoints(fromCardId: string, toCardId: string): void {
+    if (fromCardId === toCardId) {
+      throw new Error('Cannot connect a card to itself')
+    }
+
+    this.requireMapCard(fromCardId)
+    this.requireMapCard(toCardId)
   }
 
   private send(socket: WebSocket, message: unknown): void {
@@ -771,6 +1101,12 @@ function id(prefix: string): string {
 function cleanText(value: unknown, fallback: string, maxLength: number): string {
   const text = typeof value === 'string' ? value.trim() : ''
   return (text || fallback).slice(0, maxLength)
+}
+
+function cleanOptionalText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const text = value.trim().slice(0, maxLength)
+  return text || undefined
 }
 
 function normaliseInvite(value: string): string {
