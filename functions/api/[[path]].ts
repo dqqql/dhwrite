@@ -1,4 +1,12 @@
-export const onRequest = async (context) => {
+interface FetchBinding {
+  fetch: (request: Request) => Promise<Response>
+}
+
+interface PagesFunctionEnv {
+  DHGC_REALTIME?: FetchBinding
+}
+
+export const onRequest = async (context: { request: Request; env: PagesFunctionEnv }) => {
   const { request, env } = context
 
   const url = new URL(request.url)
@@ -16,6 +24,9 @@ export const onRequest = async (context) => {
     redirect: 'manual',
   })
 
-  const backend = env.DHGC_REALTIME ?? fetch
-  return backend(proxied)
+  if (env.DHGC_REALTIME) {
+    return env.DHGC_REALTIME.fetch(proxied)
+  }
+
+  return fetch(proxied)
 }
