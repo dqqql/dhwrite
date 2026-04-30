@@ -8,7 +8,10 @@ const MAX_RECONNECT_ATTEMPTS = 15
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
 export function getRealtimeApiBase() {
-  return (import.meta.env.VITE_REALTIME_API_BASE ?? DEFAULT_API_BASE).replace(/\/$/, '')
+  const configured = import.meta.env.VITE_REALTIME_API_BASE
+  if (configured !== undefined) return configured.replace(/\/$/, '')
+  if (import.meta.env.PROD) return ''
+  return DEFAULT_API_BASE
 }
 
 export async function createRoomRequest(payload: CreateRoomRequest) {

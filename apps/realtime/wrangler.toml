@@ -16,5 +16,3 @@ new_sqlite_classes = ["RoomDurableObject"]
 # database_name = "dhgc"
 # database_id = "<replace-with-d1-id>"
 
-[secrets]
-required = ["SESSION_SECRET"]

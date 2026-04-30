@@ -25,6 +25,7 @@ export interface Env {
   ROOMS: DurableObjectNamespace
   DHGC_DB?: D1Database
   SESSION_SECRET: string
+  PUBLIC_API_BASE?: string
 }
 
 interface SessionPayload {
@@ -155,7 +156,7 @@ async function roomSessionResponse(request: Request, env: Env, state: RoomState,
       player_id: player.id,
       nickname: player.nickname,
       token,
-      websocket_url: buildWebSocketUrl(request.url, state.invite_code, token),
+      websocket_url: buildWebSocketUrl(request, env, state.invite_code, token),
     },
     state,
   })
@@ -1124,8 +1125,10 @@ function internalRequest(pathname: string, init?: RequestInit): Request {
   return new Request(`https://room.local${pathname}`, init)
 }
 
-function buildWebSocketUrl(requestUrl: string, inviteCode: string, token: string): string {
-  const url = new URL(requestUrl)
+function buildWebSocketUrl(request: Request, env: Env, inviteCode: string, token: string): string {
+  const forwardedHost = request.headers.get('X-Forwarded-Host')
+  const base = env.PUBLIC_API_BASE ?? (forwardedHost ? `https://${forwardedHost}` : request.url)
+  const url = new URL(base)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   url.pathname = `/api/rooms/${inviteCode}/ws`
   url.search = new URLSearchParams({ token }).toString()
