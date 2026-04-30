@@ -1197,7 +1197,7 @@ function buildRoleCard(player: Player): DhCard {
 }
 
 function normalizeStoredCard<T extends { type: CardType; role_details?: RoleCardDetails }>(card: T): T {
-  const normalizedType = normalizeCardType(card.type) ?? card.type
+  const normalizedType = normalizeCardType(card.type) ?? (card.role_details ? 'Role' : 'Hook')
   return {
     ...card,
     type: normalizedType,

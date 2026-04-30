@@ -39,6 +39,18 @@ export const CARD_TYPE_CONFIG: Record<CardType, CardTypeBaseConfig> = {
   },
 }
 
+function resolveCardTypeConfig(type: unknown): CardTypeBaseConfig {
+  if (type === 'NPC') {
+    return CARD_TYPE_CONFIG.Hook
+  }
+
+  if (typeof type === 'string' && type in CARD_TYPE_CONFIG) {
+    return CARD_TYPE_CONFIG[type as CardType]
+  }
+
+  return CARD_TYPE_CONFIG.Hook
+}
+
 function hexToRgb(hex: string) {
   const match = /^#([0-9a-fA-F]{6})$/.exec(hex.trim())
   if (!match) return null
@@ -57,11 +69,11 @@ function withAlpha(hex: string, alpha: number, fallback: string) {
 }
 
 export function getCardTypeLabel(type: CardType): string {
-  return CARD_TYPE_CONFIG[type].label
+  return resolveCardTypeConfig(type).label
 }
 
 export function getCardVisualConfig(type: CardType, accentColor?: string): CardVisualConfig {
-  const base = CARD_TYPE_CONFIG[type]
+  const base = resolveCardTypeConfig(type)
   const color = accentColor ?? base.defaultColor
 
   return {
@@ -74,5 +86,5 @@ export function getCardVisualConfig(type: CardType, accentColor?: string): CardV
 }
 
 export function getCardTypeClass(type: CardType): string {
-  return `dh-card--${type.toLowerCase()}`
+  return `dh-card--${(typeof type === 'string' && type in CARD_TYPE_CONFIG ? type : 'Hook').toLowerCase()}`
 }
