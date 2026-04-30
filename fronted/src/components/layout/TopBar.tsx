@@ -83,21 +83,21 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
     }
 
     if (locations.length) {
-      markdown += '## 名称和地理特征\n'
+      markdown += '## 地点\n'
       locations.forEach((card) => {
         markdown += `### ${card.title}\n${getCardBodyText(card)}\n\n`
       })
     }
 
     if (features.length) {
-      markdown += '## 特色和特殊效果\n'
+      markdown += '## 特色\n'
       features.forEach((card) => {
         markdown += `### ${card.title}\n${getCardBodyText(card)}\n\n`
       })
     }
 
     if (hooks.length) {
-      markdown += '## 故事引子\n'
+      markdown += '## 故事\n'
       hooks.forEach((card) => {
         markdown += `### ${card.title}\n${getCardBodyText(card)}\n\n`
       })

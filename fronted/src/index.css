@@ -235,19 +235,26 @@ html, body, #root {
 }
 
 /* ── Hand area cards ───────────────────────────────────────────── */
-.hand-layout-grid {
-  display: grid;
-  grid-template-columns: 240px repeat(3, minmax(220px, 1fr));
+.hand-panel-layout {
+  display: flex;
+  align-items: stretch;
   gap: 14px;
-  min-width: 1040px;
-  align-items: start;
+  min-width: 0;
 }
 
-.hand-column {
+.hand-role-rail {
+  width: 240px;
+  flex: 0 0 240px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.hand-main-rail {
+  flex: 1;
   min-width: 0;
+  display: flex;
+  align-items: center;
 }
 
 .hand-column__header {
@@ -292,12 +299,6 @@ html, body, #root {
   display: flex;
 }
 
-.hand-column__cards {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 .hand-empty-card {
   display: flex;
   min-height: 144px;
@@ -315,6 +316,10 @@ html, body, #root {
 .hand-empty-card--role {
   border-color: rgba(245,158,11,0.28);
   background: linear-gradient(180deg, rgba(255,247,237,0.92), rgba(255,255,255,0.82));
+}
+
+.hand-empty-card--main {
+  width: 100%;
 }
 
 .hand-empty-card__icon {
@@ -378,9 +383,12 @@ html, body, #root {
 
 .hand-card-shell {
   position: relative;
-  width: 100%;
-  max-width: 220px;
+  width: 180px;
   flex-shrink: 0;
+}
+
+.hand-card-shell--role {
+  width: 100%;
 }
 
 .hand-card__body {
@@ -464,6 +472,7 @@ html, body, #root {
   opacity: 0;
   transform: translateY(8px);
   pointer-events: none;
+  z-index: 5;
   transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
 
@@ -524,21 +533,18 @@ html, body, #root {
   overflow: hidden;
 }
 
-@media (max-width: 1024px) {
-  .hand-layout-grid {
-    grid-template-columns: repeat(2, minmax(220px, 1fr));
-    min-width: 720px;
-  }
-}
-
-@media (max-width: 720px) {
-  .hand-layout-grid {
-    grid-template-columns: minmax(220px, 1fr);
-    min-width: 0;
+@media (max-width: 900px) {
+  .hand-panel-layout {
+    flex-direction: column;
   }
 
-  .hand-card-shell {
-    max-width: none;
+  .hand-role-rail {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .hand-main-rail {
+    overflow-x: auto;
   }
 }
 

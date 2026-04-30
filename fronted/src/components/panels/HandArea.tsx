@@ -1,12 +1,10 @@
-import React, { useMemo, useState } from 'react'
+import React, { useState } from 'react'
 import { useStore } from '@/store/useStore'
 import { getCardVisualConfig } from '@/utils/cardTypeConfig'
 import { getCardGridSize } from '@/utils/grid'
 import { getCardBodyLines } from '@/utils/cardText'
-import type { DeckCardType, DhCard } from '@/types'
+import type { DhCard } from '@/types'
 import { Plus, Shuffle, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
-
-const CATEGORY_ORDER: DeckCardType[] = ['Location', 'Feature', 'Hook']
 
 export function HandArea() {
   const {
@@ -19,14 +17,8 @@ export function HandArea() {
   const isCoCreation = room.mode === 'co-creation'
   const isMyTurn = room.current_turn_player_id === currentPlayerId
   const hand: DhCard[] = room.hands[currentPlayerId] ?? []
-
   const roleCard = hand.find((card) => card.type === 'Role') ?? null
-  const groupedCards = useMemo(
-    () => Object.fromEntries(
-      CATEGORY_ORDER.map((type) => [type, hand.filter((card) => card.type === type)]),
-    ) as Record<DeckCardType, DhCard[]>,
-    [hand],
-  )
+  const regularCards = hand.filter((card) => card.type !== 'Role')
   const roleCardAlreadyOnMap = room.map_cards.some(
     (card) => card.type === 'Role' && card.placed_by_player_id === currentPlayerId,
   )
@@ -116,8 +108,8 @@ export function HandArea() {
 
         {isHandPanelOpen && (
           <div style={{ padding: '12px 14px', overflowX: 'auto' }}>
-            <div className="hand-layout-grid">
-              <div className="hand-column hand-column--role">
+            <div className="hand-panel-layout">
+              <div className="hand-role-rail">
                 <div className="hand-column__header hand-column__header--role">
                   <span>角色卡</span>
                   <span className="hand-column__count">{roleCard ? 1 : 0}</span>
@@ -137,55 +129,30 @@ export function HandArea() {
                 </div>
               </div>
 
-              {CATEGORY_ORDER.map((type) => (
-                <div key={type} className="hand-column">
-                  <CategoryColumn
-                    type={type}
-                    cards={groupedCards[type]}
-                    canPlay={isMyTurn}
-                  />
-                </div>
-              ))}
+              <div className="hand-main-rail">
+                {regularCards.length === 0 ? (
+                  <div className="hand-empty-card hand-empty-card--main">
+                    <div>当前没有公共手牌</div>
+                    <div className="hand-empty-card__hint">起始仍会按地点、特色、故事各发两张；之后抽牌时再从三类中各翻一张三选一。</div>
+                  </div>
+                ) : (
+                  <div className="hand-card-row">
+                    {regularCards.map((card, index) => (
+                      <HandCard
+                        key={card.id}
+                        card={card}
+                        index={index}
+                        canPlay={isMyTurn}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
       </div>
     </div>
-  )
-}
-
-function CategoryColumn({ type, cards, canPlay }: { type: DeckCardType; cards: DhCard[]; canPlay: boolean }) {
-  const cfg = getCardVisualConfig(type)
-
-  return (
-    <>
-      <div className="hand-column__header">
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <cfg.Icon size={12} />
-          {cfg.label}
-        </span>
-        <span className="hand-column__count">{cards.length}</span>
-      </div>
-      <div className="hand-column__body">
-        {cards.length === 0 ? (
-          <div className="hand-empty-card">
-            <div>当前没有这类手牌</div>
-            <div className="hand-empty-card__hint">抽牌时会从三类中各展示一张，你可以继续补充这一栏。</div>
-          </div>
-        ) : (
-          <div className="hand-column__cards">
-            {cards.map((card, index) => (
-              <HandCard
-                key={card.id}
-                card={card}
-                index={index}
-                canPlay={canPlay}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </>
   )
 }
 
@@ -202,7 +169,7 @@ function HandCard({ card, index, canPlay, isRoleSpecial = false }: {
 
   return (
     <div
-      className="hand-card-shell"
+      className={`hand-card-shell ${isRoleSpecial ? 'hand-card-shell--role' : ''}`}
       style={{ animationDelay: `${index * 40}ms` }}
     >
       <div

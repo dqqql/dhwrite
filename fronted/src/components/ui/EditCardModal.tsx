@@ -5,9 +5,9 @@ import type { RoleCardDetails } from '@/types'
 import { getCardBodyLines } from '@/utils/cardText'
 
 const TYPE_LABELS = {
-  Location: '名称和地理特征',
-  Feature: '特色和特殊效果',
-  Hook: '故事引子',
+  Location: '地点',
+  Feature: '特色',
+  Hook: '故事',
   Role: '角色卡',
 } as const
 

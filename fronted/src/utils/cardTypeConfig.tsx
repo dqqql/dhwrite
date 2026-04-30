@@ -18,17 +18,17 @@ export type CardVisualConfig = {
 
 export const CARD_TYPE_CONFIG: Record<CardType, CardTypeBaseConfig> = {
   Location: {
-    label: '名称和地理特征',
+    label: '地点',
     defaultColor: '#22c55e',
     Icon: ({ size = 12 }) => <MapPin size={size} />,
   },
   Feature: {
-    label: '特色和特殊效果',
+    label: '特色',
     defaultColor: '#a855f7',
     Icon: ({ size = 12 }) => <Sparkles size={size} />,
   },
   Hook: {
-    label: '故事引子',
+    label: '故事',
     defaultColor: '#3b82f6',
     Icon: ({ size = 12 }) => <BookOpen size={size} />,
   },

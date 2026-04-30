@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link2, Maximize2, Type, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { Link2, Type, X } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { useStore } from '@/store/useStore'
 import { DhCardNode } from './CardNode'
@@ -187,10 +187,6 @@ export function MapCanvas() {
     container.addEventListener('wheel', onWheel, { passive: false })
     return () => container.removeEventListener('wheel', onWheel)
   }, [])
-
-  const zoomIn = () => setTransform((value) => ({ ...value, scale: Math.min(3, value.scale * 1.25) }))
-  const zoomOut = () => setTransform((value) => ({ ...value, scale: Math.max(0.2, value.scale * 0.8) }))
-  const resetView = () => setTransform({ x: 0, y: 0, scale: 1 })
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     if (event.dataTransfer.types.includes('application/dh-card-id')) {
@@ -584,7 +580,7 @@ export function MapCanvas() {
         </div>
       )}
 
-      <div style={{ position: 'absolute', bottom: 20, right: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ position: 'absolute', top: 14, right: 14, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 250 }}>
         <button
           title={isAnnotationPlacementActive ? '取消标注放置' : '添加文字标注'}
           className={`btn ${isAnnotationPlacementActive ? 'btn-primary' : 'btn-secondary'}`}
@@ -600,22 +596,6 @@ export function MapCanvas() {
         >
           <Type size={14} /> {isAnnotationPlacementActive ? '取消标注' : '添加标注'}
         </button>
-
-        {[
-          { Icon: ZoomIn, action: zoomIn, title: '放大' },
-          { Icon: ZoomOut, action: zoomOut, title: '缩小' },
-          { Icon: Maximize2, action: resetView, title: '重置视图' },
-        ].map(({ Icon, action, title }) => (
-          <button
-            key={title}
-            title={title}
-            className="btn btn-secondary btn-icon"
-            style={{ background: 'var(--bg-elevated)' }}
-            onClick={action}
-          >
-            <Icon size={14} />
-          </button>
-        ))}
       </div>
 
       <div
