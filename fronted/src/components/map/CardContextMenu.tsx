@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Edit3, Link2, RotateCcw, Trash2 } from 'lucide-react'
+import { Edit3, Link2, Maximize2, RotateCcw, Trash2 } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { getCardTypeLabel } from '@/utils/cardTypeConfig'
 
@@ -14,6 +14,7 @@ export function CardContextMenu() {
     triggerRecycleAnimation,
     openEditCardModal,
     startConnection,
+    markCardTerritory,
     addToast,
   } = useStore()
   const ref = useRef<HTMLDivElement>(null)
@@ -79,6 +80,23 @@ export function CardContextMenu() {
       <div className="context-menu__item" onClick={() => startConnection(card.id)}>
         <Link2 size={13} /> 发起连线
       </div>
+
+      {card.type === 'Location' && (
+        <div
+          className="context-menu__item"
+          onClick={() => {
+            if (isLockedByOther) {
+              addToast(`“${card.title}”正在由 ${card.locked_by} 编辑`, 'warning')
+              setContextMenu(null)
+              return
+            }
+
+            markCardTerritory(card.id)
+          }}
+        >
+          <Maximize2 size={13} /> 标记范围
+        </div>
+      )}
 
       <div className="context-menu__divider" />
 

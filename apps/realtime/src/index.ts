@@ -3,7 +3,6 @@ import {
   assertDhRoomBackup,
   createBuiltInPackLibrary,
   createDeckFromBuiltInPackIds,
-  createLocationTerritory,
   getCardGridSize,
   isBuiltInPackId,
   normalizeCardType,
@@ -600,10 +599,6 @@ export class RoomDurableObject {
       placed_by_player_id: player.id,
       player_color: player.color,
       is_expanded: false,
-    }
-
-    if (card.type === 'Location') {
-      mapCard.territory = createLocationTerritory(mapCard.x, mapCard.y, mapCard.width, mapCard.height)
     }
 
     room.hands[player.id] = hand.filter(item => item.id !== cardId)

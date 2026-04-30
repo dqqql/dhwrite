@@ -10,7 +10,7 @@ import {
 } from '@dhgc/shared'
 import type { Annotation, Connection, DrawOption, Rect, Toast } from '@/types'
 import { createRoomRequest, joinRoomRequest, RoomSocketConnection, type ConnectionState } from '@/lib/realtime'
-import { normalizeCardDimensions, normalizeTerritoryRect, snapToGrid } from '@/utils/grid'
+import { createLocationTerritory, normalizeCardDimensions, normalizeTerritoryRect, snapToGrid } from '@/utils/grid'
 
 type ConnectionStatus = ConnectionState
 
@@ -102,6 +102,7 @@ interface AppStore extends UIState {
   commitMoveCard: (cardId: string, x: number, y: number) => void
   resizeCard: (cardId: string, width: number, height: number) => void
   commitResizeCard: (cardId: string, width: number, height: number) => void
+  markCardTerritory: (cardId: string) => void
   updateCardTerritory: (cardId: string, territory: Rect) => void
   commitCardTerritory: (cardId: string, territory: Rect) => void
   toggleExpandCard: (cardId: string) => void
@@ -618,6 +619,39 @@ export const useStore = create<AppStore>((set, get) => {
           height: normalized?.height ?? height,
         },
       })
+    },
+
+    markCardTerritory: (cardId) => {
+      const card = get().room?.map_cards.find((item) => item.id === cardId)
+      if (!card || card.type !== 'Location') return
+
+      const territory = normalizeTerritoryRect(
+        createLocationTerritory(card.x, card.y, card.width, card.height),
+        card.width,
+        card.height,
+      )
+
+      const sent = sendMessage({
+        type: 'card.edit',
+        payload: {
+          cardId,
+          updates: { territory },
+        },
+      })
+
+      if (!sent) return
+
+      set((state) => ({
+        room: state.room ? {
+          ...state.room,
+          map_cards: state.room.map_cards.map((item) => (
+            item.id === cardId && item.type === 'Location'
+              ? { ...item, territory }
+              : item
+          )),
+        } : null,
+        contextMenu: null,
+      }))
     },
 
     updateCardTerritory: (cardId, territory) => {
