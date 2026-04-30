@@ -1,4 +1,4 @@
-export const onRequest: PagesFunction<{ DHGC_REALTIME?: { fetch: typeof fetch } }> = async (context) => {
+export const onRequest = async (context) => {
   const { request, env } = context
 
   const url = new URL(request.url)
@@ -7,9 +7,9 @@ export const onRequest: PagesFunction<{ DHGC_REALTIME?: { fetch: typeof fetch } 
 
   const headers = new Headers(request.headers)
   headers.set('X-Forwarded-Host', new URL(request.url).host)
-  headers.set('X-Forwarded-Proto', url.protocol.replace(':', ''))
+  headers.set('X-Forwarded-Proto', 'https')
 
-  const proxied = new Request(url, {
+  const proxied = new Request(url.toString(), {
     method: request.method,
     headers,
     body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
