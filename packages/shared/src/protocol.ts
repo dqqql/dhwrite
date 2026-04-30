@@ -19,7 +19,7 @@ export type ClientMessage =
   | { type: 'card.resize.commit'; requestId?: string; payload: { cardId: string; width: number; height: number } }
   | { type: 'card.lock'; requestId?: string; payload: { cardId: string } }
   | { type: 'card.unlock'; requestId?: string; payload: { cardId: string } }
-  | { type: 'card.edit'; requestId?: string; payload: { cardId: string; updates: Partial<DhCard> & { territory?: Rect } } }
+  | { type: 'card.edit'; requestId?: string; payload: { cardId: string; updates: Partial<DhCard> & { territory?: Rect | null } } }
   | { type: 'card.delete'; requestId?: string; payload: { cardId: string } }
   | { type: 'card.recycle'; requestId?: string; payload: { cardId: string } }
   | { type: 'connection.add'; requestId?: string; payload: Omit<Connection, 'id'> }

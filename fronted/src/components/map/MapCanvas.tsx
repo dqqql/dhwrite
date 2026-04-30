@@ -7,7 +7,7 @@ import { CardContextMenu } from './CardContextMenu'
 import { AnnotationNode } from './AnnotationNode'
 import { getCardVisualConfig } from '@/utils/cardTypeConfig'
 import { GRID_SIZE, getCardGridSize, snapToGrid } from '@/utils/grid'
-import type { CardType, DhCard } from '@/types'
+import type { CardType, DhCard, MapCard } from '@/types'
 
 interface ConnectionRenderData {
   id: string
@@ -26,32 +26,73 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
+function rectsOverlap(
+  a: { left: number; top: number; right: number; bottom: number },
+  b: { left: number; top: number; right: number; bottom: number },
+) {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+}
+
 function buildConnectionRenderData(connection: {
   id: string
   from_card_id: string
   to_card_id: string
   color: 'red' | 'green' | 'gray'
   label?: string
-}, from: DhCard & { x: number; y: number; width: number; height: number }, to: DhCard & { x: number; y: number; width: number; height: number }): ConnectionRenderData {
+}, from: MapCard, to: MapCard): ConnectionRenderData {
   const x1 = from.x + from.width / 2
   const y1 = from.y + from.height / 2
   const x2 = to.x + to.width / 2
   const y2 = to.y + to.height / 2
   const straightMidX = (x1 + x2) / 2
   const straightMidY = (y1 + y2) / 2
-  const distance = Math.hypot(x2 - x1, y2 - y1)
-  const curveLift = clamp(distance * 0.22, 40, 88)
-  const controlX = straightMidX
-  const controlY = straightMidY - curveLift
-  const bezierMidX = 0.25 * x1 + 0.5 * controlX + 0.25 * x2
-  const bezierMidY = 0.25 * y1 + 0.5 * controlY + 0.25 * y2
-  const dirX = bezierMidX - straightMidX
-  const dirY = bezierMidY - straightMidY
-  const dirLength = Math.hypot(dirX, dirY) || 1
-  const labelOffset = clamp(18 + Math.max(0, 140 - distance) * 0.12, 18, 34)
-  const labelX = bezierMidX + (dirX / dirLength) * labelOffset
-  const labelY = bezierMidY + (dirY / dirLength) * labelOffset
   const labelWidth = clamp((connection.label?.length ?? 0) * 12 + 20, 44, 220)
+  const labelHeight = 22
+  let normalX = -(y2 - y1)
+  let normalY = x2 - x1
+  const normalLength = Math.hypot(normalX, normalY) || 1
+  normalX /= normalLength
+  normalY /= normalLength
+  if (normalY > 0) {
+    normalX *= -1
+    normalY *= -1
+  }
+
+  const cardRects = [
+    {
+      left: from.x - 12,
+      top: from.y - 12,
+      right: from.x + from.width + 12,
+      bottom: from.y + from.height + 12,
+    },
+    {
+      left: to.x - 12,
+      top: to.y - 12,
+      right: to.x + to.width + 12,
+      bottom: to.y + to.height + 12,
+    },
+  ]
+
+  let labelOffset = 0
+  let labelX = straightMidX
+  let labelY = straightMidY
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    const labelRect = {
+      left: labelX - labelWidth / 2,
+      top: labelY - labelHeight / 2,
+      right: labelX + labelWidth / 2,
+      bottom: labelY + labelHeight / 2,
+    }
+
+    const overlapsObstacle = cardRects.some((rect) => rectsOverlap(labelRect, rect))
+    if (!overlapsObstacle) break
+
+    labelOffset += attempt === 0 ? 18 : 12
+    labelX = straightMidX + normalX * labelOffset
+    labelY = straightMidY + normalY * labelOffset
+  }
+
   const strokeColor = connection.color === 'red'
     ? 'var(--conn-conflict)'
     : connection.color === 'green'
@@ -62,7 +103,7 @@ function buildConnectionRenderData(connection: {
     id: connection.id,
     fromCardId: from.id,
     toCardId: to.id,
-    path: `M ${x1} ${y1} Q ${controlX} ${controlY} ${x2} ${y2}`,
+    path: `M ${x1} ${y1} L ${x2} ${y2}`,
     strokeColor,
     markerColor: connection.color,
     label: connection.label,
@@ -403,7 +444,7 @@ export function MapCanvas() {
 
           {previewPath && (
             <path
-              d={`M ${previewPath.x1} ${previewPath.y1} Q ${(previewPath.x1 + previewPath.x2) / 2} ${((previewPath.y1 + previewPath.y2) / 2) - 40} ${previewPath.x2} ${previewPath.y2}`}
+              d={`M ${previewPath.x1} ${previewPath.y1} L ${previewPath.x2} ${previewPath.y2}`}
               stroke="var(--accent-violet)"
               strokeWidth="1.5"
               strokeDasharray="7 5"

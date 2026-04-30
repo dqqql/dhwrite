@@ -103,10 +103,11 @@ interface AppStore extends UIState {
   resizeCard: (cardId: string, width: number, height: number) => void
   commitResizeCard: (cardId: string, width: number, height: number) => void
   markCardTerritory: (cardId: string) => void
+  clearCardTerritory: (cardId: string) => void
   updateCardTerritory: (cardId: string, territory: Rect) => void
   commitCardTerritory: (cardId: string, territory: Rect) => void
   toggleExpandCard: (cardId: string) => void
-  editCard: (cardId: string, updates: Partial<DhCard> & { territory?: Rect }) => void
+  editCard: (cardId: string, updates: Partial<DhCard> & { territory?: Rect | null }) => void
   deleteCard: (cardId: string) => void
   recycleCard: (cardId: string) => void
   lockCard: (cardId: string) => void
@@ -649,6 +650,34 @@ export const useStore = create<AppStore>((set, get) => {
               ? { ...item, territory }
               : item
           )),
+        } : null,
+        contextMenu: null,
+      }))
+    },
+
+    clearCardTerritory: (cardId) => {
+      const card = get().room?.map_cards.find((item) => item.id === cardId)
+      if (!card || card.type !== 'Location' || !card.territory) return
+
+      const sent = sendMessage({
+        type: 'card.edit',
+        payload: {
+          cardId,
+          updates: { territory: null },
+        },
+      })
+
+      if (!sent) return
+
+      set((state) => ({
+        room: state.room ? {
+          ...state.room,
+          map_cards: state.room.map_cards.map((item) => {
+            if (item.id !== cardId || item.type !== 'Location') return item
+            const nextItem = { ...item }
+            delete nextItem.territory
+            return nextItem
+          }),
         } : null,
         contextMenu: null,
       }))

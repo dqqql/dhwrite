@@ -314,6 +314,8 @@ html, body, #root {
 }
 
 .hand-empty-card--role {
+  width: 100%;
+  flex: 1 1 auto;
   border-color: rgba(245,158,11,0.28);
   background: linear-gradient(180deg, rgba(255,247,237,0.92), rgba(255,255,255,0.82));
 }

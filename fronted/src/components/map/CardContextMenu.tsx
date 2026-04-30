@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Edit3, Link2, Maximize2, RotateCcw, Trash2 } from 'lucide-react'
+import { Edit3, Link2, Maximize2, Minimize2, RotateCcw, Trash2 } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { getCardTypeLabel } from '@/utils/cardTypeConfig'
 
@@ -15,6 +15,7 @@ export function CardContextMenu() {
     openEditCardModal,
     startConnection,
     markCardTerritory,
+    clearCardTerritory,
     addToast,
   } = useStore()
   const ref = useRef<HTMLDivElement>(null)
@@ -91,10 +92,16 @@ export function CardContextMenu() {
               return
             }
 
+            if (card.territory) {
+              clearCardTerritory(card.id)
+              return
+            }
+
             markCardTerritory(card.id)
           }}
         >
-          <Maximize2 size={13} /> 标记范围
+          {card.territory ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+          {card.territory ? '收回标记范围' : '标记范围'}
         </div>
       )}
 

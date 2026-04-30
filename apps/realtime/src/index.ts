@@ -31,6 +31,10 @@ export interface Env {
   PUBLIC_API_BASE?: string
 }
 
+type MapCardUpdateInput = Omit<Partial<MapCard>, 'territory'> & {
+  territory?: MapCard['territory'] | null
+}
+
 interface SessionPayload {
   room_id: string
   invite_code: string
@@ -208,7 +212,7 @@ export class RoomDurableObject {
       annotations: [],
       pack_library: createBuiltInPackLibrary(),
       settings: {
-        imports_enabled: false,
+        imports_enabled: true,
       },
       selected_pack_ids: selectedPackIds,
       drawn_this_turn: {},
@@ -415,10 +419,14 @@ export class RoomDurableObject {
       case 'card.edit': {
         this.requireUnlockedOrOwner(player, message.payload.cardId)
         const card = this.requireMapCard(message.payload.cardId)
-        const updates: Partial<MapCard> = { ...message.payload.updates }
+        const updates: MapCardUpdateInput = { ...message.payload.updates }
 
-        if (card.type === 'Location' && updates.territory) {
-          updates.territory = normalizeTerritoryRect(updates.territory, card.width, card.height)
+        if (card.type === 'Location' && Object.prototype.hasOwnProperty.call(updates, 'territory')) {
+          if (updates.territory) {
+            updates.territory = normalizeTerritoryRect(updates.territory, card.width, card.height)
+          } else {
+            updates.territory = undefined
+          }
         }
 
         this.updateMapCard(message.payload.cardId, updates)
@@ -717,7 +725,10 @@ export class RoomDurableObject {
     room.annotations = structuredClone(backup.map.annotations)
     room.pack_library = importedLibrary
     room.selected_pack_ids = importedSelectedPackIds
-    room.settings = backup.settings ?? room.settings
+    room.settings = {
+      ...room.settings,
+      imports_enabled: backup.settings?.imports_enabled ?? true,
+    }
     room.host_player_id = hostPlayerId
     room.players = activePlayers.map((player) => ({
       ...player,
@@ -844,9 +855,25 @@ export class RoomDurableObject {
     delete card.locked_until
   }
 
-  private updateMapCard(cardId: string, updates: Partial<MapCard>): void {
+  private updateMapCard(cardId: string, updates: MapCardUpdateInput): void {
     const room = this.requireRoom()
-    room.map_cards = room.map_cards.map(card => card.id === cardId ? { ...card, ...updates } : card)
+    room.map_cards = room.map_cards.map((card) => {
+      if (card.id !== cardId) return card
+
+      const { territory, ...restUpdates } = updates
+      const nextCard: MapCard = { ...card, ...restUpdates }
+
+      if (!Object.prototype.hasOwnProperty.call(updates, 'territory')) {
+        return nextCard
+      }
+
+      if (territory) {
+        return { ...nextCard, territory }
+      }
+
+      delete nextCard.territory
+      return nextCard
+    })
   }
 
   private moveMapCard(cardId: string, x: number, y: number): void {
@@ -1050,7 +1077,7 @@ export class RoomDurableObject {
       ),
       map_cards: room.map_cards.map((card) => normalizeStoredCard(card) as MapCard),
       settings: {
-        imports_enabled: migrated.settings?.imports_enabled ?? false,
+        imports_enabled: migrated.settings?.imports_enabled ?? true,
       },
       pack_library: packLibrary.map((pack) => ({
         ...pack,
