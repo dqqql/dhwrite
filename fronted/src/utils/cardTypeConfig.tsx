@@ -1,6 +1,6 @@
 import React from 'react'
 import type { CardType } from '@/types'
-import { MapPin, Users, Sparkles } from 'lucide-react'
+import { BookOpen, MapPin, Sparkles, User } from 'lucide-react'
 
 type CardTypeBaseConfig = {
   label: string
@@ -18,19 +18,24 @@ export type CardVisualConfig = {
 
 export const CARD_TYPE_CONFIG: Record<CardType, CardTypeBaseConfig> = {
   Location: {
-    label: '地点',
+    label: '名称和地理特征',
     defaultColor: '#22c55e',
     Icon: ({ size = 12 }) => <MapPin size={size} />,
   },
-  NPC: {
-    label: '人物',
-    defaultColor: '#3b82f6',
-    Icon: ({ size = 12 }) => <Users size={size} />,
-  },
   Feature: {
-    label: '特色',
+    label: '特色和特殊效果',
     defaultColor: '#a855f7',
     Icon: ({ size = 12 }) => <Sparkles size={size} />,
+  },
+  Hook: {
+    label: '故事引子',
+    defaultColor: '#3b82f6',
+    Icon: ({ size = 12 }) => <BookOpen size={size} />,
+  },
+  Role: {
+    label: '角色卡',
+    defaultColor: '#f59e0b',
+    Icon: ({ size = 12 }) => <User size={size} />,
   },
 }
 

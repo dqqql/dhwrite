@@ -6,17 +6,21 @@ import {
   createLocationTerritory,
   getCardGridSize,
   isBuiltInPackId,
+  normalizeCardType,
   normalizeCardDimensions,
   normalizeBuiltInPackSelection,
   normalizeTerritoryRect,
   safeJsonParse,
   snapToGrid,
+  type CardType,
   type ClientMessage,
+  type DeckCardType,
   type DhCard,
   type DhPack,
   type DhRoomBackup,
   type MapCard,
   type Player,
+  type RoleCardDetails,
   type RoomPackLibraryItem,
   type RoomState,
 } from '../../../packages/shared/src/index'
@@ -43,19 +47,8 @@ interface SocketSession {
 
 const PLAYER_COLORS = ['#f43f5e', '#2563eb', '#f59e0b', '#10b981', '#a855f7', '#06b6d4']
 const ROOM_TTL_MS = 3 * 24 * 60 * 60 * 1000
-
-const OFFICIAL_DECK: Array<Omit<DhCard, 'id' | 'is_custom' | 'pack_id'>> = [
-  { type: 'Location', title: '镜坠堡', content: '一座废弃要塞，城墙映照出各种可能未来的碎片。', style: '#22c55e' },
-  { type: 'Location', title: '灰烬果园', content: '焦黑的果树围绕着一块被埋葬的契约之石生长。', style: '#22c55e' },
-  { type: 'Location', title: '低港暗湾', content: '走私者、朝圣者与海底之物共用的隐秘港口。', style: '#22c55e' },
-  { type: 'Location', title: '钟醒修道院', content: '每口钟在不同的时刻敲响，且无一与太阳同步。', style: '#22c55e' },
-  { type: 'NPC', title: '帷幕摄政', content: '通过面具、替身与仪式性分身统治国家的君主。', style: '#2563eb' },
-  { type: 'NPC', title: '红丝线船长', content: '一位迷人的私掠者，声称每笔债务都可编入命运之网。', style: '#2563eb' },
-  { type: 'NPC', title: '末代琉璃匠', content: '能用诚实之物作为酬劳，修补记忆的工匠。', style: '#2563eb' },
-  { type: 'NPC', title: '铁瞳审计官', content: '追查一本失落王室账册的无情审判者。', style: '#2563eb' },
-  { type: 'Feature', title: '无月祭典', content: '一年一度的庆典，此日所有影子不再属于各自的主人。', style: '#a855f7' },
-  { type: 'Feature', title: '血誓宪章', content: '一份以镜像创伤惩罚背叛的法律文书。', style: '#a855f7' },
-]
+const DRAW_TYPES: DeckCardType[] = ['Location', 'Feature', 'Hook']
+const STARTING_CARDS_PER_TYPE = 2
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -141,7 +134,7 @@ async function joinRoom(request: Request, env: Env): Promise<Response> {
 }
 
 async function roomSessionResponse(request: Request, env: Env, state: RoomState, player: Player): Promise<Response> {
-  const token = await signSession(env.SESSION_SECRET, {
+  const token = await signSession(getSessionSecret(env), {
     room_id: state.room_id,
     invite_code: state.invite_code,
     player_id: player.id,
@@ -251,7 +244,7 @@ export class RoomDurableObject {
     const room = await this.mustLoad()
     const url = new URL(request.url)
     const token = url.searchParams.get('token') ?? ''
-    const session = await verifySession(this.env.SESSION_SECRET, token)
+    const session = await verifySession(getSessionSecret(this.env), token)
     if (!session || session.invite_code !== room.invite_code) {
       return new Response('Invalid session token', { status: 401 })
     }
@@ -358,8 +351,12 @@ export class RoomDurableObject {
       case 'card.draw':
         this.requireCurrentTurn(player)
         if (room.drawn_this_turn[player.id]) throw new Error('Already drew this turn')
-        this.pendingDraws.set(player.id, room.deck.slice(0, 3))
-        this.send(socket, { type: 'draw.options', requestId: message.requestId, payload: { cards: room.deck.slice(0, 3) } })
+        this.pendingDraws.set(player.id, this.buildDrawOptions())
+        this.send(socket, {
+          type: 'draw.options',
+          requestId: message.requestId,
+          payload: { cards: this.pendingDraws.get(player.id) ?? [] },
+        })
         return
 
       case 'card.draw.confirm': {
@@ -376,6 +373,9 @@ export class RoomDurableObject {
       }
 
       case 'card.create': {
+        if (message.payload.card.type === 'Role') {
+          throw new Error('Role cards are created automatically for each player')
+        }
         const card: DhCard = { ...message.payload.card, id: id('card'), is_custom: true }
         room.hands[player.id] = [...(room.hands[player.id] ?? []), card]
         await this.commit('card.create')
@@ -507,23 +507,20 @@ export class RoomDurableObject {
   private startCoCreation(): void {
     const room = this.requireRoom()
     const onlinePlayers = room.players.filter(item => item.is_online)
-    const openingHandSize = 5
-    const requiredCards = onlinePlayers.length * openingHandSize
-
-    if (room.deck.length < requiredCards) {
-      throw new Error(`Not enough cards in deck to start co-creation for ${onlinePlayers.length} players`)
-    }
 
     room.mode = 'co-creation'
     room.drawn_this_turn = {}
     room.current_turn_player_id = this.nextOnlinePlayer(room.turn_order[0] ?? null)
+    this.pendingDraws.clear()
 
     for (const playerId of Object.keys(room.hands)) {
       room.hands[playerId] = []
     }
 
     for (const player of onlinePlayers) {
-      room.hands[player.id] = room.deck.splice(0, openingHandSize)
+      const openingHand = this.drawCardsForTypes(DRAW_TYPES.map((type) => ({ type, count: STARTING_CARDS_PER_TYPE })))
+      const roleCard = this.hasRoleCardOnMap(player.id) ? [] : [buildRoleCard(player)]
+      room.hands[player.id] = [...roleCard, ...openingHand]
     }
   }
 
@@ -531,7 +528,7 @@ export class RoomDurableObject {
     const room = this.requireRoom()
     const returned: DhCard[] = []
     for (const playerId of Object.keys(room.hands)) {
-      returned.push(...room.hands[playerId].filter(card => !card.is_custom))
+      returned.push(...room.hands[playerId].filter(card => !card.is_custom && card.type !== 'Role'))
       room.hands[playerId] = []
     }
     room.deck = shuffle([...room.deck, ...returned])
@@ -539,6 +536,52 @@ export class RoomDurableObject {
     room.current_turn_player_id = null
     room.drawn_this_turn = {}
     this.pendingDraws.clear()
+  }
+
+  private buildDrawOptions(): DhCard[] {
+    const room = this.requireRoom()
+    const options: DhCard[] = []
+
+    for (const type of DRAW_TYPES) {
+      const candidate = room.deck.find((card) => card.type === type)
+      if (!candidate) {
+        throw new Error(`Not enough ${type} cards left in deck to draw`)
+      }
+      options.push(candidate)
+    }
+
+    return options
+  }
+
+  private drawCardsForTypes(requests: Array<{ type: DeckCardType; count: number }>): DhCard[] {
+    const room = this.requireRoom()
+    let remainingDeck = [...room.deck]
+    const drawn: DhCard[] = []
+
+    for (const request of requests) {
+      const selectedIndexes: number[] = []
+
+      for (let index = 0; index < remainingDeck.length && selectedIndexes.length < request.count; index += 1) {
+        if (remainingDeck[index].type === request.type) {
+          selectedIndexes.push(index)
+        }
+      }
+
+      if (selectedIndexes.length < request.count) {
+        throw new Error(`Not enough ${request.type} cards left in deck`)
+      }
+
+      const selectedIndexSet = new Set(selectedIndexes)
+      drawn.push(...selectedIndexes.map((index) => remainingDeck[index]))
+      remainingDeck = remainingDeck.filter((_, index) => !selectedIndexSet.has(index))
+    }
+
+    room.deck = remainingDeck
+    return drawn
+  }
+
+  private hasRoleCardOnMap(playerId: string): boolean {
+    return this.requireRoom().map_cards.some((card) => card.type === 'Role' && card.placed_by_player_id === playerId)
   }
 
   private playCard(player: Player, cardId: string, x: number, y: number): void {
@@ -1006,10 +1049,18 @@ export class RoomDurableObject {
 
     return {
       ...room,
-      pack_library: packLibrary,
+      deck: room.deck.map((card) => normalizeStoredCard(card)),
+      hands: Object.fromEntries(
+        Object.entries(room.hands).map(([playerId, cards]) => [playerId, cards.map((card) => normalizeStoredCard(card))]),
+      ),
+      map_cards: room.map_cards.map((card) => normalizeStoredCard(card) as MapCard),
       settings: {
         imports_enabled: migrated.settings?.imports_enabled ?? false,
       },
+      pack_library: packLibrary.map((pack) => ({
+        ...pack,
+        cards: pack.cards.map((card) => normalizeStoredPackCard(card)),
+      })),
       selected_pack_ids: Array.from(new Set(selectedPackIds)),
     }
   }
@@ -1102,6 +1153,41 @@ function stripMapFields(card: MapCard): DhCard {
     style: card.style,
     is_custom: card.is_custom,
     pack_id: card.pack_id,
+    role_details: card.role_details,
+  }
+}
+
+function buildRoleCard(player: Player): DhCard {
+  return {
+    id: id('role'),
+    type: 'Role',
+    title: `${player.nickname}的角色`,
+    content: '记录角色从创建到与他人相聚前最重要的经历、目标或秘密。',
+    style: '#f59e0b',
+    is_custom: false,
+    role_details: {
+      player_name: player.nickname,
+      profession: '',
+      ancestry: '',
+      community: '',
+    },
+  }
+}
+
+function normalizeStoredCard<T extends { type: CardType; role_details?: RoleCardDetails }>(card: T): T {
+  const normalizedType = normalizeCardType(card.type) ?? card.type
+  return {
+    ...card,
+    type: normalizedType,
+    ...(normalizedType === 'Role' ? {} : { role_details: undefined }),
+  }
+}
+
+function normalizeStoredPackCard<T extends { type: DeckCardType }>(card: T): T {
+  const normalizedType = normalizeCardType(card.type)
+  return {
+    ...card,
+    type: normalizedType === 'Role' || !normalizedType ? 'Hook' : normalizedType,
   }
 }
 
@@ -1176,6 +1262,10 @@ function clamp(value: number, min: number, max: number): number {
 
 function finiteNumber(value: number, fallback: number): number {
   return Number.isFinite(value) ? value : fallback
+}
+
+function getSessionSecret(env: Env): string {
+  return env.SESSION_SECRET?.trim() || 'dhgc-local-dev-session-secret'
 }
 
 async function signSession(secret: string, payload: SessionPayload): Promise<string> {

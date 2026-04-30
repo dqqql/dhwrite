@@ -7,8 +7,9 @@ export const LOCATION_TERRITORY_SCALE = 2
 
 export const CARD_GRID_SIZE: Record<CardType, { cols: number; rows: number }> = {
   Location: { cols: 9, rows: 6 },
-  NPC: { cols: 7, rows: 5 },
   Feature: { cols: 8, rows: 5 },
+  Hook: { cols: 8, rows: 5 },
+  Role: { cols: 8, rows: 6 },
 }
 
 export function snapToGrid(value: number) {

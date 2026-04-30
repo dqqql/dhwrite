@@ -211,7 +211,7 @@ export function MapCanvas() {
     const rect = containerRef.current.getBoundingClientRect()
     const pointerWorldX = (event.clientX - rect.left - transform.x) / transform.scale
     const pointerWorldY = (event.clientY - rect.top - transform.y) / transform.scale
-    const cardSize = getCardGridSize(cardType || 'NPC')
+    const cardSize = getCardGridSize(cardType || 'Hook')
     const worldX = pointerWorldX - cardSize.width / 2
     const worldY = pointerWorldY - cardSize.height / 2
     const snappedWorldX = snapToGrid(worldX)

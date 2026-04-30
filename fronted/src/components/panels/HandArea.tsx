@@ -1,9 +1,12 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useStore } from '@/store/useStore'
 import { getCardVisualConfig } from '@/utils/cardTypeConfig'
 import { getCardGridSize } from '@/utils/grid'
-import type { DhCard } from '@/types'
-import { Plus, Shuffle, ChevronDown, ChevronUp } from 'lucide-react'
+import { getCardBodyLines } from '@/utils/cardText'
+import type { DeckCardType, DhCard } from '@/types'
+import { Plus, Shuffle, ChevronDown, ChevronUp, Sparkles } from 'lucide-react'
+
+const CATEGORY_ORDER: DeckCardType[] = ['Location', 'Feature', 'Hook']
 
 export function HandArea() {
   const {
@@ -17,6 +20,17 @@ export function HandArea() {
   const isMyTurn = room.current_turn_player_id === currentPlayerId
   const hand: DhCard[] = room.hands[currentPlayerId] ?? []
 
+  const roleCard = hand.find((card) => card.type === 'Role') ?? null
+  const groupedCards = useMemo(
+    () => Object.fromEntries(
+      CATEGORY_ORDER.map((type) => [type, hand.filter((card) => card.type === type)]),
+    ) as Record<DeckCardType, DhCard[]>,
+    [hand],
+  )
+  const roleCardAlreadyOnMap = room.map_cards.some(
+    (card) => card.type === 'Role' && card.placed_by_player_id === currentPlayerId,
+  )
+
   if (!isCoCreation) return null
 
   return (
@@ -28,7 +42,6 @@ export function HandArea() {
       zIndex: 200,
       pointerEvents: 'none',
     }}>
-      {/* Hand panel */}
       <div
         className="glass-panel"
         data-hand-drop-target="true"
@@ -41,7 +54,6 @@ export function HandArea() {
           transform: isHandPanelOpen ? 'none' : 'translateY(calc(100% - 44px))',
         }}
       >
-        {/* Header */}
         <div
           style={{
             display: 'flex', alignItems: 'center', gap: 12,
@@ -64,31 +76,29 @@ export function HandArea() {
 
           {isMyTurn && (
             <div style={{
-              marginLeft: 0,
               padding: '2px 10px', borderRadius: 99,
               background: 'rgba(16,185,129,0.12)', color: 'var(--accent-emerald)',
               fontSize: 11, fontWeight: 600, border: '1px solid rgba(16,185,129,0.2)',
             }}>
-              ✦ 你的回合
+              你的回合
             </div>
           )}
 
           <div style={{ flex: 1 }} />
 
-          {/* Actions */}
           {isMyTurn && (
             <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={drawCards}
-                title="抽牌（3选1）"
+                title="从三类卡牌中各揭示一张，再三选一加入手牌"
               >
                 <Shuffle size={13} /> 抽牌
               </button>
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={openCreateCardModal}
-                title="自创卡牌"
+                title="创建一张自定义卡牌"
               >
                 <Plus size={13} /> 自创
               </button>
@@ -96,7 +106,7 @@ export function HandArea() {
                 className="btn btn-primary btn-sm"
                 onClick={() => useStore.getState().endTurn()}
               >
-                结束回合 →
+                结束回合
               </button>
             </div>
           )}
@@ -104,31 +114,39 @@ export function HandArea() {
           {isHandPanelOpen ? <ChevronDown size={14} color="var(--text-muted)" /> : <ChevronUp size={14} color="var(--text-muted)" />}
         </div>
 
-        {/* Cards */}
         {isHandPanelOpen && (
-          <div style={{
-            padding: '12px 14px',
-            overflowX: 'auto',
-            minHeight: 170,
-          }}>
-            {hand.length === 0 ? (
-              <div style={{ color: 'var(--text-muted)', fontSize: 13, margin: 'auto', textAlign: 'center', padding: '20px 0' }}>
-                <div style={{ fontSize: 24, marginBottom: 8 }}>🃏</div>
-                <div>手牌为空</div>
-                {isMyTurn && <div style={{ fontSize: 11, marginTop: 4, color: 'var(--text-muted)' }}>点击「抽牌」获取新手牌</div>}
+          <div style={{ padding: '12px 14px', overflowX: 'auto' }}>
+            <div className="hand-layout-grid">
+              <div className="hand-column hand-column--role">
+                <div className="hand-column__header hand-column__header--role">
+                  <span>角色卡</span>
+                  <span className="hand-column__count">{roleCard ? 1 : 0}</span>
+                </div>
+                <div className="hand-column__body hand-column__body--role">
+                  {roleCard ? (
+                    <HandCard card={roleCard} index={0} canPlay={isMyTurn} isRoleSpecial />
+                  ) : (
+                    <div className="hand-empty-card hand-empty-card--role">
+                      <div className="hand-empty-card__icon"><Sparkles size={16} /></div>
+                      <div>{roleCardAlreadyOnMap ? '角色卡已上场' : '本轮暂无角色卡'}</div>
+                      <div className="hand-empty-card__hint">
+                        {roleCardAlreadyOnMap ? '你的角色已经进入地图，可继续围绕它连线和补充信息。' : '开始新一轮共创时会自动补发。'}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            ) : (
-              <div className="hand-card-row">
-                {hand.map((card, idx) => (
-                  <HandCard
-                    key={card.id}
-                    card={card}
-                    index={idx}
+
+              {CATEGORY_ORDER.map((type) => (
+                <div key={type} className="hand-column">
+                  <CategoryColumn
+                    type={type}
+                    cards={groupedCards[type]}
                     canPlay={isMyTurn}
                   />
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -136,12 +154,51 @@ export function HandArea() {
   )
 }
 
-function HandCard({ card, index, canPlay }: {
-  card: DhCard; index: number; canPlay: boolean
+function CategoryColumn({ type, cards, canPlay }: { type: DeckCardType; cards: DhCard[]; canPlay: boolean }) {
+  const cfg = getCardVisualConfig(type)
+
+  return (
+    <>
+      <div className="hand-column__header">
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <cfg.Icon size={12} />
+          {cfg.label}
+        </span>
+        <span className="hand-column__count">{cards.length}</span>
+      </div>
+      <div className="hand-column__body">
+        {cards.length === 0 ? (
+          <div className="hand-empty-card">
+            <div>当前没有这类手牌</div>
+            <div className="hand-empty-card__hint">抽牌时会从三类中各展示一张，你可以继续补充这一栏。</div>
+          </div>
+        ) : (
+          <div className="hand-column__cards">
+            {cards.map((card, index) => (
+              <HandCard
+                key={card.id}
+                card={card}
+                index={index}
+                canPlay={canPlay}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function HandCard({ card, index, canPlay, isRoleSpecial = false }: {
+  card: DhCard
+  index: number
+  canPlay: boolean
+  isRoleSpecial?: boolean
 }) {
   const cfg = getCardVisualConfig(card.type, card.style)
   const [isDragging, setIsDragging] = useState(false)
   const { beginHandCardDrag, clearHandCardDrag } = useStore()
+  const bodyLines = getCardBodyLines(card)
 
   return (
     <div
@@ -149,7 +206,7 @@ function HandCard({ card, index, canPlay }: {
       style={{ animationDelay: `${index * 40}ms` }}
     >
       <div
-        className={`hand-card ${isDragging ? 'hand-card--dragging' : ''}`}
+        className={`hand-card ${isDragging ? 'hand-card--dragging' : ''} ${isRoleSpecial ? 'hand-card--role' : ''}`}
         style={{
           borderTop: `3px solid ${cfg.color}`,
           opacity: canPlay ? 1 : 0.65,
@@ -177,11 +234,17 @@ function HandCard({ card, index, canPlay }: {
           setIsDragging(false)
           clearHandCardDrag(card.id)
         }}
-        title={canPlay ? '拖拽到地图以打出此卡' : '非你的回合，无法打牌'}
+        title={canPlay ? '拖拽到地图以打出这张卡牌' : '非你的回合，暂时不能打牌'}
       >
         {card.is_custom && (
           <div className="hand-card__custom-badge">
             自创
+          </div>
+        )}
+
+        {isRoleSpecial && (
+          <div className="hand-card__special-badge">
+            特殊
           </div>
         )}
 
@@ -207,7 +270,10 @@ function HandCard({ card, index, canPlay }: {
             </span>
           </div>
           {card.is_custom && <span className="hand-card__hover-custom">自创</span>}
-          <div className="hand-card__hover-content">{card.content || '暂无描述'}</div>
+          {isRoleSpecial && <span className="hand-card__hover-custom">特殊角色卡</span>}
+          <div className="hand-card__hover-content">
+            {bodyLines.length ? bodyLines.map((line, lineIndex) => <div key={`${lineIndex}-${line}`}>{line}</div>) : '暂无描述'}
+          </div>
         </div>
       </div>
     </div>

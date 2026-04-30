@@ -1,9 +1,21 @@
-import type { CardType, DhRoomBackup, DhPack, RoomPackLibraryItem, RoomSettings } from './types'
+import type { CardType, DeckCardType, DhRoomBackup, DhPack, RoomPackLibraryItem, RoomSettings } from './types'
 
-const CARD_TYPES: CardType[] = ['Location', 'NPC', 'Feature']
+const CARD_TYPES: CardType[] = ['Location', 'Feature', 'Hook', 'Role']
+const LEGACY_CARD_TYPES = new Set(['NPC'])
 
 export function isCardType(value: unknown): value is CardType {
-  return typeof value === 'string' && CARD_TYPES.includes(value as CardType)
+  return typeof value === 'string' && (CARD_TYPES.includes(value as CardType) || LEGACY_CARD_TYPES.has(value))
+}
+
+export function normalizeCardType(value: unknown): CardType | null {
+  if (value === 'NPC') return 'Hook'
+  return isCardType(value) ? value : null
+}
+
+function normalizeDeckCardType(value: unknown): DeckCardType | null {
+  const normalized = normalizeCardType(value)
+  if (!normalized || normalized === 'Role') return null
+  return normalized
 }
 
 export function assertDhPack(value: unknown): DhPack {
@@ -21,12 +33,14 @@ export function assertDhPack(value: unknown): DhPack {
 
   for (const [index, card] of pack.cards.entries()) {
     if (!card || typeof card !== 'object') throw new Error(`Card ${index} must be an object`)
-    if (!isCardType(card.type)) throw new Error(`Card ${index} has invalid type`)
+    const normalizedType = normalizeDeckCardType(card.type)
+    if (!normalizedType) throw new Error(`Card ${index} has invalid type`)
     if (typeof card.title !== 'string' || !card.title.trim()) throw new Error(`Card ${index} title is required`)
     if (typeof card.content !== 'string') throw new Error(`Card ${index} content is required`)
     if (typeof card.style !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(card.style)) {
       throw new Error(`Card ${index} style must be a hex color`)
     }
+    ;(card as { type: DeckCardType }).type = normalizedType
   }
 
   return pack as DhPack
@@ -71,6 +85,8 @@ export function assertDhRoomBackup(value: unknown): DhRoomBackup {
     }
   }
 
+  normalizeBackupCardTypes(backup)
+
   return backup as DhRoomBackup
 }
 
@@ -99,13 +115,15 @@ function assertRoomLibrary(packs: unknown, selectedPackIds: unknown): asserts pa
 
     for (const [cardIndex, card] of candidate.cards.entries()) {
       if (!card || typeof card !== 'object') throw new Error(`Library pack ${index} card ${cardIndex} must be an object`)
-      if (!isCardType(card.type)) throw new Error(`Library pack ${index} card ${cardIndex} has invalid type`)
+      const normalizedType = normalizeDeckCardType(card.type)
+      if (!normalizedType) throw new Error(`Library pack ${index} card ${cardIndex} has invalid type`)
       if (typeof card.id !== 'string' || !card.id) throw new Error(`Library pack ${index} card ${cardIndex} id is required`)
       if (typeof card.title !== 'string' || !card.title.trim()) throw new Error(`Library pack ${index} card ${cardIndex} title is required`)
       if (typeof card.content !== 'string') throw new Error(`Library pack ${index} card ${cardIndex} content is required`)
       if (typeof card.style !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(card.style)) {
         throw new Error(`Library pack ${index} card ${cardIndex} style must be a hex color`)
       }
+      ;(card as { type: DeckCardType }).type = normalizedType
     }
   }
 }
@@ -114,4 +132,18 @@ function assertRoomSettings(settings: unknown): asserts settings is RoomSettings
   if (!settings || typeof settings !== 'object') throw new Error('Room settings must be an object')
   const candidate = settings as Partial<RoomSettings>
   if (typeof candidate.imports_enabled !== 'boolean') throw new Error('Room imports_enabled must be a boolean')
+}
+
+function normalizeBackupCardTypes(backup: Partial<DhRoomBackup>) {
+  const normalizeCard = (card: { type?: unknown }) => {
+    const normalizedType = normalizeCardType(card.type)
+    if (normalizedType) {
+      ;(card as { type: CardType }).type = normalizedType
+    }
+  }
+
+  backup.session?.deck?.forEach(normalizeCard)
+  backup.session?.hands?.forEach((hand) => hand.cards.forEach(normalizeCard))
+  backup.map?.cards?.forEach(normalizeCard)
+  backup.library?.packs?.forEach((pack) => pack.cards.forEach(normalizeCard))
 }

@@ -1,17 +1,23 @@
 import React, { useState } from 'react'
 import { useStore } from '@/store/useStore'
 import { Modal } from './Modal'
-import type { CardType } from '@/types'
+import type { DeckCardType } from '@/types'
 
-const TYPES: CardType[] = ['Location', 'NPC', 'Feature']
-const TYPE_LABELS: Record<CardType, string> = { Location: '地点', NPC: '人物', Feature: '特色' }
-const TYPE_COLORS: Record<CardType, string> = {
-  Location: '#22c55e', NPC: '#3b82f6', Feature: '#a855f7'
+const TYPES: DeckCardType[] = ['Location', 'Feature', 'Hook']
+const TYPE_LABELS: Record<DeckCardType, string> = {
+  Location: '名称和地理特征',
+  Feature: '特色和特殊效果',
+  Hook: '故事引子',
+}
+const TYPE_COLORS: Record<DeckCardType, string> = {
+  Location: '#22c55e',
+  Feature: '#a855f7',
+  Hook: '#3b82f6',
 }
 
 export function CreateCardModal() {
   const { isCreateCardModalOpen, closeCreateCardModal, createCustomCard } = useStore()
-  const [type, setType] = useState<CardType>('NPC')
+  const [type, setType] = useState<DeckCardType>('Hook')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
 
@@ -22,7 +28,7 @@ export function CreateCardModal() {
       type, title: title.trim(), content: content.trim(),
       style: TYPE_COLORS[type], is_custom: true,
     })
-    setTitle(''); setContent(''); setType('NPC')
+    setTitle(''); setContent(''); setType('Hook')
   }
 
   return (

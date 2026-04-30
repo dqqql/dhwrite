@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { Edit3, Link2, RotateCcw, Trash2 } from 'lucide-react'
 import { useStore } from '@/store/useStore'
+import { getCardTypeLabel } from '@/utils/cardTypeConfig'
 
 export function CardContextMenu() {
   const {
@@ -34,7 +35,7 @@ export function CardContextMenu() {
   if (!card) return null
 
   const isCoCreation = room.mode === 'co-creation'
-  const typeLabel = card.type === 'Location' ? '地点' : card.type === 'NPC' ? '人物' : '特色'
+  const typeLabel = getCardTypeLabel(card.type)
   const isLockedByOther = Boolean(card.locked_by_player_id && card.locked_by_player_id !== currentPlayerId)
 
   return (

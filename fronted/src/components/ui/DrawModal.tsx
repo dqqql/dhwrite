@@ -1,20 +1,23 @@
 import React from 'react'
 import { useStore } from '@/store/useStore'
-import type { DhCard } from '@/types'
+import type { DeckCardType, DhCard } from '@/types'
 import { getCardVisualConfig } from '@/utils/cardTypeConfig'
 import { Modal } from './Modal'
 import { Zap } from 'lucide-react'
 
+const DRAW_ORDER: DeckCardType[] = ['Location', 'Feature', 'Hook']
+
 export function DrawModal() {
   const { isDrawModalOpen, drawOptions, closeDrawModal, confirmDraw } = useStore()
+  const sortedOptions = [...drawOptions].sort((a, b) => DRAW_ORDER.indexOf(a.type as DeckCardType) - DRAW_ORDER.indexOf(b.type as DeckCardType))
 
   return (
-    <Modal open={isDrawModalOpen} onClose={closeDrawModal} title="抽牌 · 三选一" maxWidth={580}>
+    <Modal open={isDrawModalOpen} onClose={closeDrawModal} title="抽牌 · 各类选一" maxWidth={680}>
       <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 20 }}>
-        从以下三张卡牌中选择一张加入手牌
+        系统会从三个类别中各翻出一张卡牌。请选择其中一张加入手牌，其余两张留在牌堆中。
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        {drawOptions.map((card, i) => (
+        {sortedOptions.map((card, i) => (
           <DrawOptionCard key={card.id} card={card} delay={i * 80} onSelect={() => confirmDraw(card.id)} />
         ))}
       </div>

@@ -1,6 +1,7 @@
 import React from 'react'
 import { fetchDhRoomBackup } from '@/lib/realtime'
 import { useStore } from '@/store/useStore'
+import { getCardBodyText } from '@/utils/cardText'
 import {
   BookOpen,
   ChevronDown,
@@ -69,28 +70,36 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
 
   function exportMarkdown() {
     let markdown = `# ${currentRoom.room_name} - 叙事摘要\n\n`
+    const roleCards = currentRoom.map_cards.filter((card) => card.type === 'Role')
     const locations = currentRoom.map_cards.filter((card) => card.type === 'Location')
-    const npcs = currentRoom.map_cards.filter((card) => card.type === 'NPC')
     const features = currentRoom.map_cards.filter((card) => card.type === 'Feature')
+    const hooks = currentRoom.map_cards.filter((card) => card.type === 'Hook')
 
-    if (locations.length) {
-      markdown += '## 地点\n'
-      locations.forEach((card) => {
-        markdown += `### ${card.title}\n${card.content}\n\n`
+    if (roleCards.length) {
+      markdown += '## 角色卡\n'
+      roleCards.forEach((card) => {
+        markdown += `### ${card.title}\n${getCardBodyText(card)}\n\n`
       })
     }
 
-    if (npcs.length) {
-      markdown += '## 人物\n'
-      npcs.forEach((card) => {
-        markdown += `### ${card.title}\n${card.content}\n\n`
+    if (locations.length) {
+      markdown += '## 名称和地理特征\n'
+      locations.forEach((card) => {
+        markdown += `### ${card.title}\n${getCardBodyText(card)}\n\n`
       })
     }
 
     if (features.length) {
-      markdown += '## 特色\n'
+      markdown += '## 特色和特殊效果\n'
       features.forEach((card) => {
-        markdown += `### ${card.title}\n${card.content}\n\n`
+        markdown += `### ${card.title}\n${getCardBodyText(card)}\n\n`
+      })
+    }
+
+    if (hooks.length) {
+      markdown += '## 故事引子\n'
+      hooks.forEach((card) => {
+        markdown += `### ${card.title}\n${getCardBodyText(card)}\n\n`
       })
     }
 

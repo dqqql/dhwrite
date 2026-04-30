@@ -235,6 +235,104 @@ html, body, #root {
 }
 
 /* ── Hand area cards ───────────────────────────────────────────── */
+.hand-layout-grid {
+  display: grid;
+  grid-template-columns: 240px repeat(3, minmax(220px, 1fr));
+  gap: 14px;
+  min-width: 1040px;
+  align-items: start;
+}
+
+.hand-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.hand-column__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255,255,255,0.72);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.hand-column__header--role {
+  border-color: rgba(245,158,11,0.24);
+  background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(251,191,36,0.08));
+}
+
+.hand-column__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hand-column__body {
+  min-height: 164px;
+}
+
+.hand-column__body--role {
+  display: flex;
+}
+
+.hand-column__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hand-empty-card {
+  display: flex;
+  min-height: 144px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 16px;
+  border: 1px dashed var(--border-default);
+  background: rgba(255,255,255,0.68);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.hand-empty-card--role {
+  border-color: rgba(245,158,11,0.28);
+  background: linear-gradient(180deg, rgba(255,247,237,0.92), rgba(255,255,255,0.82));
+}
+
+.hand-empty-card__icon {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(245,158,11,0.12);
+  color: var(--accent-amber);
+}
+
+.hand-empty-card__hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .hand-card {
   position: relative;
   background: var(--bg-elevated);
@@ -243,12 +341,18 @@ html, body, #root {
   padding: 12px 14px;
   cursor: grab;
   transition: transform 180ms cubic-bezier(0.2,0.8,0.2,1), box-shadow var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast);
-  width: 180px;
+  width: 100%;
   height: 144px;
   flex-shrink: 0;
   overflow: hidden;
   display: flex;
   align-items: stretch;
+}
+.hand-card--role {
+  background:
+    linear-gradient(180deg, rgba(255,248,235,0.98), rgba(255,255,255,0.96)),
+    var(--bg-elevated);
+  box-shadow: 0 0 0 1px rgba(245,158,11,0.08), 0 10px 24px rgba(245,158,11,0.08);
 }
 .hand-card:hover {
   transform: translateY(-8px);
@@ -274,6 +378,8 @@ html, body, #root {
 
 .hand-card-shell {
   position: relative;
+  width: 100%;
+  max-width: 220px;
   flex-shrink: 0;
 }
 
@@ -328,6 +434,20 @@ html, body, #root {
   color: var(--accent-amber);
   background: rgba(245,158,11,0.12);
   border: 1px solid rgba(245,158,11,0.24);
+  padding: 2px 6px;
+  border-radius: 999px;
+  z-index: 2;
+}
+
+.hand-card__special-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #92400e;
+  background: rgba(251,191,36,0.18);
+  border: 1px solid rgba(245,158,11,0.32);
   padding: 2px 6px;
   border-radius: 999px;
   z-index: 2;
@@ -398,10 +518,28 @@ html, body, #root {
   font-size: 12px;
   line-height: 1.6;
   color: var(--text-secondary);
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   overflow: hidden;
+}
+
+@media (max-width: 1024px) {
+  .hand-layout-grid {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+    min-width: 720px;
+  }
+}
+
+@media (max-width: 720px) {
+  .hand-layout-grid {
+    grid-template-columns: minmax(220px, 1fr);
+    min-width: 0;
+  }
+
+  .hand-card-shell {
+    max-width: none;
+  }
 }
 
 /* ── Mode bar ──────────────────────────────────────────────────── */

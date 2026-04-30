@@ -141,9 +141,14 @@ async function main() {
   const startState = startA.payload.state
   check('Mode is co-creation', startState.mode === 'co-creation')
   check(
-    'Both players received 5 starting cards',
-    startState.hands[sessionA.player_id]?.length === 5 && startState.hands[sessionB.player_id]?.length === 5,
+    'Both players received 7 starting cards',
+    startState.hands[sessionA.player_id]?.length === 7 && startState.hands[sessionB.player_id]?.length === 7,
     `A:${startState.hands[sessionA.player_id]?.length} B:${startState.hands[sessionB.player_id]?.length}`,
+  )
+  check(
+    'Starting hands include exactly one role card per player',
+    startState.hands[sessionA.player_id]?.filter((card) => card.type === 'Role').length === 1
+      && startState.hands[sessionB.player_id]?.filter((card) => card.type === 'Role').length === 1,
   )
   check('B synced co-creation start', startB.payload.state.mode === 'co-creation')
   drain(a.messages)
@@ -156,27 +161,34 @@ async function main() {
   send(turnClient.ws, { type: 'card.draw' })
   const drawBatch = await collectUntil(turnClient.messages, 'draw.options')
   const drawOptions = drawBatch[drawBatch.length - 1]
-  check('Draw options received', drawOptions.payload.cards.length >= 1, `got ${drawOptions.payload.cards.length}`)
+  check('Draw options received', drawOptions.payload.cards.length === 3, `got ${drawOptions.payload.cards.length}`)
+  check(
+    'Draw options cover all three deck categories',
+    ['Feature', 'Hook', 'Location'].every((type) => drawOptions.payload.cards.some((card) => card.type === type)),
+    drawOptions.payload.cards.map((card) => card.type).join(','),
+  )
 
   const picked = drawOptions.payload.cards[0]
   send(turnClient.ws, { type: 'card.draw.confirm', payload: { cardId: picked.id } })
   const drawUpdateA = await waitForRoomUpdate(a.messages)
   const drawUpdateB = await waitForRoomUpdate(b.messages)
   const drawState = drawUpdateA.payload.state
-  check('Hand increased after draw', drawState.hands[turnSessionId].length === 6, `size ${drawState.hands[turnSessionId].length}`)
-  check('Other client synced draw', drawUpdateB.payload.state.hands[turnSessionId].length === 6)
+  check('Hand increased after draw', drawState.hands[turnSessionId].length === 8, `size ${drawState.hands[turnSessionId].length}`)
+  check('Other client synced draw', drawUpdateB.payload.state.hands[turnSessionId].length === 8)
   drain(a.messages)
   drain(b.messages)
 
   console.log('\n6. Play a card onto the map')
-  const cardToPlay = drawState.hands[turnSessionId][0]
+  const cardToPlay = drawState.hands[turnSessionId].find((card) => card.type !== 'Role')
+  check('Found a non-role card to play', Boolean(cardToPlay))
+  if (!cardToPlay) throw new Error('No playable non-role card in hand')
   send(turnClient.ws, { type: 'card.play', payload: { cardId: cardToPlay.id, x: 240, y: 192 } })
   const playUpdateA = await waitForRoomUpdate(a.messages)
   const playUpdateB = await waitForRoomUpdate(b.messages)
   const playState = playUpdateA.payload.state
   const placedCard = playState.map_cards.find((card) => card.id === cardToPlay.id)
   check('Card appeared on map', Boolean(placedCard))
-  check('Hand decreased after play', playState.hands[turnSessionId].length === 5, `size ${playState.hands[turnSessionId].length}`)
+  check('Hand decreased after play', playState.hands[turnSessionId].length === 7, `size ${playState.hands[turnSessionId].length}`)
   check('Other client synced played card', playUpdateB.payload.state.map_cards.some((card) => card.id === cardToPlay.id))
   drain(a.messages)
   drain(b.messages)
@@ -277,7 +289,7 @@ async function main() {
     type: 'card.create',
     payload: {
       card: {
-        type: 'NPC',
+        type: 'Hook',
         title: 'Custom Contact',
         content: 'Created in smoke test',
         style: '#ff0000',

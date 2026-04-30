@@ -1,7 +1,15 @@
-export type CardType = 'Location' | 'NPC' | 'Feature'
+export type DeckCardType = 'Location' | 'Feature' | 'Hook'
+export type CardType = DeckCardType | 'Role'
 export type RoomMode = 'free' | 'co-creation' | 'normal'
 export type ConnectionColor = 'red' | 'green' | 'gray'
 export type RoomPackSource = 'built-in' | 'imported'
+
+export interface RoleCardDetails {
+  player_name: string
+  profession: string
+  ancestry: string
+  community: string
+}
 
 export interface DhCard {
   id: string
@@ -11,6 +19,7 @@ export interface DhCard {
   style: string
   is_custom: boolean
   pack_id?: string
+  role_details?: RoleCardDetails
 }
 
 export interface MapCard extends DhCard {
@@ -66,7 +75,7 @@ export interface Player {
 
 export interface RoomPackCard {
   id: string
-  type: CardType
+  type: DeckCardType
   title: string
   content: string
   style: string
@@ -114,7 +123,7 @@ export interface DhPack {
   pack_name: string
   cards: Array<{
     id?: string
-    type: CardType
+    type: DeckCardType
     title: string
     content: string
     style: string

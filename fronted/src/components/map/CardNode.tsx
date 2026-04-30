@@ -2,6 +2,7 @@ import React, { useRef, useCallback } from 'react'
 import { useStore } from '@/store/useStore'
 import type { MapCard } from '@/types'
 import { getCardVisualConfig } from '@/utils/cardTypeConfig'
+import { getCardBodyLines } from '@/utils/cardText'
 import { ChevronDown, ChevronUp, Lock, Maximize2 } from 'lucide-react'
 import { GRID_SIZE, MIN_CARD_GRID_COLS, MIN_CARD_GRID_ROWS } from '@/utils/grid'
 
@@ -21,6 +22,7 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
   const currentPlayerName = room?.players.find(p => p.id === currentPlayerId)?.nickname
   const isLocked = !!card.locked_by && card.locked_by !== currentPlayerName
   const territory = card.type === 'Location' ? card.territory : undefined
+  const bodyLines = getCardBodyLines(card)
 
   const dragStart = useRef<{ mx: number; my: number; ox: number; oy: number } | null>(null)
   const resizeStart = useRef<{ mx: number; my: number; width: number; height: number } | null>(null)
@@ -305,9 +307,11 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
           </div>
 
           {/* Content (expanded only) */}
-          {card.is_expanded && card.content && (
-            <div className="dh-card__content" style={{ marginTop: 6 }}>
-              {card.content}
+          {card.is_expanded && bodyLines.length > 0 && (
+            <div className="dh-card__content" style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {bodyLines.map((line, index) => (
+                <div key={`${index}-${line}`}>{line}</div>
+              ))}
             </div>
           )}
         </div>

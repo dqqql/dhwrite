@@ -1,12 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '@/store/useStore'
 import { Modal } from './Modal'
+import type { RoleCardDetails } from '@/types'
+import { getCardBodyLines } from '@/utils/cardText'
 
 const TYPE_LABELS = {
-  Location: '地点',
-  NPC: '人物',
-  Feature: '特色',
+  Location: '名称和地理特征',
+  Feature: '特色和特殊效果',
+  Hook: '故事引子',
+  Role: '角色卡',
 } as const
+
+const EMPTY_ROLE_DETAILS: RoleCardDetails = {
+  player_name: '',
+  profession: '',
+  ancestry: '',
+  community: '',
+}
 
 export function EditCardModal() {
   const {
@@ -28,6 +38,7 @@ export function EditCardModal() {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [style, setStyle] = useState('#2563eb')
+  const [roleDetails, setRoleDetails] = useState<RoleCardDetails>(EMPTY_ROLE_DETAILS)
   const lockedCardIdRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -39,6 +50,7 @@ export function EditCardModal() {
     setTitle(latestCard.title)
     setContent(latestCard.content)
     setStyle(latestCard.style)
+    setRoleDetails(latestCard.role_details ?? EMPTY_ROLE_DETAILS)
   }, [editingCardId, isEditCardModalOpen])
 
   useEffect(() => {
@@ -66,6 +78,11 @@ export function EditCardModal() {
 
   if (!card) return null
   const activeCard = card
+  const previewLines = getCardBodyLines({
+    type: activeCard.type,
+    content,
+    role_details: activeCard.type === 'Role' ? roleDetails : undefined,
+  })
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -75,6 +92,16 @@ export function EditCardModal() {
       title: title.trim(),
       content: content.trim(),
       style,
+      ...(activeCard.type === 'Role'
+        ? {
+            role_details: {
+              player_name: roleDetails.player_name.trim() || title.trim(),
+              profession: roleDetails.profession.trim(),
+              ancestry: roleDetails.ancestry.trim(),
+              community: roleDetails.community.trim(),
+            },
+          }
+        : {}),
     })
   }
 
@@ -82,7 +109,7 @@ export function EditCardModal() {
     <Modal
       open={isEditCardModalOpen}
       onClose={closeEditCardModal}
-      title={`编辑${TYPE_LABELS[activeCard.type]}卡`}
+      title={activeCard.type === 'Role' ? '编辑角色卡' : `编辑${TYPE_LABELS[activeCard.type]}卡`}
       maxWidth={520}
     >
       <form onSubmit={handleSubmit}>
@@ -108,6 +135,38 @@ export function EditCardModal() {
             rows={5}
           />
         </div>
+
+        {activeCard.type === 'Role' && (
+          <div style={{ marginBottom: 14 }}>
+            <label className="label">角色信息</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+              <input
+                className="input"
+                value={roleDetails.player_name}
+                onChange={(event) => setRoleDetails((prev) => ({ ...prev, player_name: event.target.value }))}
+                placeholder="名字"
+              />
+              <input
+                className="input"
+                value={roleDetails.profession}
+                onChange={(event) => setRoleDetails((prev) => ({ ...prev, profession: event.target.value }))}
+                placeholder="职业"
+              />
+              <input
+                className="input"
+                value={roleDetails.ancestry}
+                onChange={(event) => setRoleDetails((prev) => ({ ...prev, ancestry: event.target.value }))}
+                placeholder="种族"
+              />
+              <input
+                className="input"
+                value={roleDetails.community}
+                onChange={(event) => setRoleDetails((prev) => ({ ...prev, community: event.target.value }))}
+                placeholder="社群"
+              />
+            </div>
+          </div>
+        )}
 
         <div style={{ marginBottom: 18 }}>
           <label className="label">展示色</label>
@@ -150,8 +209,11 @@ export function EditCardModal() {
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
             {title || '未命名卡牌'}
           </div>
-          <div style={{ fontSize: 12, lineHeight: 1.65, color: 'var(--text-secondary)' }}>
-            {content || '暂无描述'}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, lineHeight: 1.65, color: 'var(--text-secondary)' }}>
+            {previewLines.map((line) => (
+              <div key={line}>{line}</div>
+            ))}
+            {!previewLines.length && <div>暂无描述</div>}
           </div>
         </div>
 

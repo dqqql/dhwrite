@@ -115,7 +115,7 @@ node smoke-test.mjs
 - 结束共创并回收手牌
 - 重连恢复
 
-结果：`36 passed, 0 failed`
+结果：`39 passed, 0 failed`
 
 ## 上线测试前状态
 
