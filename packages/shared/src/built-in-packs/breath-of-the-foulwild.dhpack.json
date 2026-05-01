@@ -8,21 +8,21 @@
     {
       "id": "bow-location-fanwick",
       "type": "Location",
-      "title": "???",
+      "title": "泛威克",
       "content": "充满野性的蛮荒之地，深邃盘曲的幽林中暗藏足以吞没整支军队的致命泥淖。遭到入侵后，大片沼泽被改造成了一块块散发着病态甜腻气味的红花田。",
       "style": "#22c55e"
     },
     {
       "id": "bow-location-andu",
       "type": "Location",
-      "title": "??",
+      "title": "安度",
       "content": "壁垒森严的强盛城市，其闻名遐迩的宏伟城墙是由被弑杀的“花岗蟒”神明遗骨凿刻而成，石墙上刻有“无神门”的铭文。如今街头遍布着被瘟疫化为石像的死者。",
       "style": "#22c55e"
     },
     {
       "id": "bow-location-foulwild-core",
       "type": "Location",
-      "title": "?????",
+      "title": "秽野核心区",
       "content": "因失去季节更替而疯狂爆发的自然疆域。巨大的藤蔓遍布森林地表，冲散了沼泽与森林的边界，摧毁了人造的家园与社群。",
       "style": "#22c55e"
     },
