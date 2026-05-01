@@ -3,17 +3,17 @@
 /* ── Design Tokens ─────────────────────────────────────────────── */
 :root {
   /* Surface */
-  --bg-base:        #f4f5f7;
+  --bg-base:        #fafafa;
   --bg-surface:     #ffffff;
   --bg-elevated:    #ffffff;
-  --bg-overlay:     #f1f3f5;
-  --bg-hover:       #e9edf2;
-  --grid-line:      rgba(32, 39, 54, 0.09);
+  --bg-overlay:     #f4f5f7;
+  --bg-hover:       #f0f1f4;
+  --grid-line:      rgba(15, 23, 42, 0.03);
 
   /* Borders */
-  --border-subtle:  rgba(15,23,42,0.08);
-  --border-default: rgba(15,23,42,0.14);
-  --border-strong:  rgba(15,23,42,0.28);
+  --border-subtle:  rgba(15,23,42,0.04);
+  --border-default: rgba(15,23,42,0.08);
+  --border-strong:  rgba(15,23,42,0.16);
 
   /* Accent */
   --accent-violet:  #2563eb;
@@ -45,18 +45,20 @@
   /* Text */
   --text-primary:   #111827;
   --text-secondary: #4b5563;
-  --text-muted:     #8a94a6;
+  --text-muted:     #9ca3af;
 
   /* Shadows */
-  --shadow-card:    0 1px 2px rgba(15,23,42,0.10);
-  --shadow-panel:   0 8px 24px rgba(15,23,42,0.12);
-  --shadow-glow-v:  0 0 0 3px rgba(37,99,235,0.12);
+  --shadow-card:    0 2px 6px -1px rgba(15,23,42,0.06), 0 1px 3px -1px rgba(15,23,42,0.04);
+  --shadow-panel:   0 24px 48px -12px rgba(15,23,42,0.18), 0 8px 24px -4px rgba(15,23,42,0.08);
+  --shadow-glow-v:  0 0 0 3px rgba(37,99,235,0.25);
+  --shadow-glow-a:  0 0 0 3px rgba(245,158,11,0.25);
 
   /* Radius */
   --radius-sm:  2px;
   --radius-md:  3px;
   --radius-lg:  4px;
   --radius-xl:  6px;
+  --radius-2xl: 8px;
 
   /* Transitions */
   --transition-fast:   150ms cubic-bezier(0.4,0,0.2,1);
@@ -120,20 +122,21 @@ html, body, #root {
 
 /* ── Glassmorphism panels ──────────────────────────────────────── */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 0;
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--shadow-panel), inset 0 0 0 1px rgba(255,255,255,0.5);
 }
 
 .glass-panel-sm {
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(16px) saturate(1.5);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 0;
+  box-shadow: 0 8px 32px -8px rgba(15,23,42,0.1), inset 0 0 0 1px rgba(255,255,255,0.5);
 }
 
 /* ── Card styles ───────────────────────────────────────────────── */
@@ -143,7 +146,7 @@ html, body, #root {
   border: 1px solid var(--border-default);
   border-radius: 0;
   box-shadow: var(--shadow-card);
-  transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
+  transition: transform var(--transition-fast), box-shadow var(--transition-normal), border-color var(--transition-normal);
   overflow: hidden;
   cursor: grab;
   user-select: none;
@@ -152,7 +155,8 @@ html, body, #root {
 .dh-card:active { cursor: grabbing; }
 
 .dh-card:hover {
-  box-shadow: 0 4px 10px rgba(15,23,42,0.14), 0 0 0 1px var(--border-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -8px rgba(15,23,42,0.15), 0 0 0 1px var(--border-strong);
 }
 
 .dh-card--location { --card-color: var(--card-location); }
@@ -170,7 +174,7 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 0;
   font-size: 10px;
   font-weight: 600;
@@ -501,7 +505,7 @@ html, body, #root {
   gap: 5px;
   font-size: 11px;
   font-weight: 700;
-  padding: 4px 9px;
+  padding: 4px 10px;
   border: 1px solid;
   border-radius: 999px;
   flex-shrink: 0;
@@ -577,27 +581,35 @@ html, body, #root {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 7px 16px;
+  gap: 8px;
+  padding: 8px 18px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   border: none;
   cursor: pointer;
   transition: all var(--transition-fast);
   white-space: nowrap;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
   font-family: inherit;
+  outline: none;
 }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .btn-primary {
-  background: var(--accent-violet);
+  background: linear-gradient(180deg, var(--accent-violet), #1d4ed8);
   color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 1px 2px rgba(15,23,42,0.1);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-violet-hover);
-  box-shadow: var(--shadow-glow-v);
+  background: linear-gradient(180deg, #3b82f6, var(--accent-violet));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2), 0 4px 12px rgba(37,99,235,0.3);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .btn-secondary {
@@ -635,12 +647,12 @@ html, body, #root {
 /* ── Inputs ────────────────────────────────────────────────────── */
 .input {
   width: 100%;
-  background: var(--bg-overlay);
+  background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
-  padding: 8px 12px;
+  padding: 10px 14px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 14px;
   font-family: inherit;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   outline: none;
@@ -648,7 +660,7 @@ html, body, #root {
 .input::placeholder { color: var(--text-muted); }
 .input:focus {
   border-color: var(--accent-violet);
-  box-shadow: 0 0 0 3px rgba(124,111,222,0.15);
+  box-shadow: var(--shadow-glow-v);
 }
 
 textarea.input { resize: vertical; min-height: 80px; line-height: 1.6; }
@@ -669,10 +681,10 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.6; }
   position: fixed;
   z-index: 9999;
   background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-subtle);
   border-radius: 0;
   box-shadow: var(--shadow-panel);
-  padding: 4px;
+  padding: 6px;
   min-width: 160px;
   animation: ctxFadeIn 120ms ease;
 }
@@ -684,9 +696,10 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.6; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 8px 12px;
   border-radius: 0;
   font-size: 13px;
+  font-weight: 500;
   color: var(--text-primary);
   cursor: pointer;
   transition: background var(--transition-fast);
@@ -752,10 +765,10 @@ textarea.input { resize: vertical; min-height: 80px; line-height: 1.6; }
 }
 .modal-content {
   background: var(--bg-elevated);
-  border: 1px solid var(--border-default);
+  border: 1px solid var(--border-subtle);
   border-radius: 0;
   box-shadow: var(--shadow-panel);
-  padding: 28px;
+  padding: 32px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;

@@ -97,40 +97,40 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 64,
-              height: 64,
+              width: 72,
+              height: 72,
               borderRadius: 0,
-              background: 'var(--accent-violet)',
-              marginBottom: 16,
-              boxShadow: '0 8px 24px rgba(37,99,235,0.18)',
-              fontSize: 28,
+              background: 'linear-gradient(135deg, var(--accent-violet), #3b82f6)',
+              marginBottom: 20,
+              boxShadow: '0 12px 32px -8px rgba(37,99,235,0.35), inset 0 2px 0 rgba(255,255,255,0.2)',
+              fontSize: 32,
               fontWeight: 800,
               color: 'white',
             }}
           >
             匕
           </div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)', marginBottom: 6 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)', marginBottom: 8 }}>
             匕首之心
           </h1>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>
+          <p style={{ fontSize: 15, color: 'var(--text-secondary)', letterSpacing: '0.01em', fontWeight: 500 }}>
             团前共创工具 · 多人卡牌地图协作
           </p>
         </div>
 
-        <div className="glass-panel" style={{ padding: 24 }}>
-          <div style={{ display: 'flex', gap: 4, marginBottom: 22, background: 'var(--bg-base)', borderRadius: 0, padding: 3 }}>
+        <div className="glass-panel" style={{ padding: 32 }}>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 28, background: 'var(--bg-overlay)', borderRadius: 0, padding: 4 }}>
             {(['create', 'join'] as const).map((value) => (
               <button
                 key={value}
                 onClick={() => setTab(value)}
                 style={{
                   flex: 1,
-                  padding: '7px 0',
+                  padding: '8px 0',
                   borderRadius: 0,
                   border: 'none',
                   cursor: 'pointer',
-                  fontSize: 13,
+                  fontSize: 14,
                   fontWeight: 600,
                   fontFamily: 'inherit',
                   background: tab === value ? 'var(--bg-elevated)' : 'transparent',

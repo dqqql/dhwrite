@@ -156,12 +156,13 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
             width: 28,
             height: 28,
             borderRadius: 0,
-            background: 'var(--accent-violet)',
+            background: 'linear-gradient(135deg, var(--accent-violet), #3b82f6)',
+            boxShadow: '0 2px 8px rgba(37,99,235,0.25)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontSize: 14,
-            fontWeight: 700,
+            fontWeight: 800,
             color: 'white',
           }}
         >

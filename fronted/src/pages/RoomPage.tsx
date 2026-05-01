@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { TopBar } from '@/components/layout/TopBar'
 import { MapCanvas } from '@/components/map/MapCanvas'
 import { HandArea } from '@/components/panels/HandArea'
@@ -12,6 +12,7 @@ import { EndCoCreationConfirm } from '@/components/ui/EndCoCreationConfirm'
 import { ImportModal } from '@/components/ui/ImportModal'
 import { RoomSettingsModal } from '@/components/ui/RoomSettingsModal'
 import { ToastContainer } from '@/components/ui/Toast'
+import { TurnStartModal } from '@/components/ui/TurnStartModal'
 import { useStore } from '@/store/useStore'
 
 interface RoomPageProps {
@@ -19,7 +20,30 @@ interface RoomPageProps {
 }
 
 export function RoomPage({ onLeaveRoom }: RoomPageProps) {
-  const { room, connectionStatus, manualReconnect } = useStore()
+  const { room, connectionStatus, manualReconnect, currentPlayerId, drawCards } = useStore()
+  const [isTurnStartModalOpen, setIsTurnStartModalOpen] = useState(false)
+  const previousTurnPlayerIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!room || room.mode !== 'co-creation') {
+      previousTurnPlayerIdRef.current = room?.current_turn_player_id ?? null
+      setIsTurnStartModalOpen(false)
+      return
+    }
+
+    const currentTurnPlayerId = room.current_turn_player_id
+    const previousTurnPlayerId = previousTurnPlayerIdRef.current
+
+    if (
+      previousTurnPlayerId !== null &&
+      previousTurnPlayerId !== currentTurnPlayerId &&
+      currentTurnPlayerId === currentPlayerId
+    ) {
+      setIsTurnStartModalOpen(true)
+    }
+
+    previousTurnPlayerIdRef.current = currentTurnPlayerId
+  }, [room, currentPlayerId])
 
   if (!room) {
     return (
@@ -42,6 +66,11 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
   }
 
   const showReconnectBanner = connectionStatus === 'reconnecting' || connectionStatus === 'error'
+
+  function handleTurnStartDraw() {
+    setIsTurnStartModalOpen(false)
+    drawCards()
+  }
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
@@ -99,6 +128,11 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
       <HandArea />
 
       <DrawModal />
+      <TurnStartModal
+        open={isTurnStartModalOpen}
+        onClose={() => setIsTurnStartModalOpen(false)}
+        onDraw={handleTurnStartDraw}
+      />
       <CreateCardModal />
       <EditCardModal />
       <ConnectionModal />
