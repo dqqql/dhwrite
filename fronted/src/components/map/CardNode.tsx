@@ -277,7 +277,7 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
           top: card.y,
           width: card.width,
           height: card.height,
-          borderLeft: `4px solid ${cfg.color}`,
+          borderColor: cfg.border,
           boxShadow: `0 1px 2px rgba(15,23,42,0.12), 0 0 0 2px ${card.player_color}22`,
           zIndex: 2,
         }}
@@ -292,23 +292,24 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
           boxShadow: `0 0 0 1px ${card.player_color}`,
         }} />
 
-        <div style={{ padding: '8px 10px 24px' }}>
-          <div className="dh-card__header-row" style={{ paddingRight: 12 }}>
-            <span
-              className="dh-card__type-badge"
-              style={{ background: cfg.bg, color: cfg.color, borderColor: cfg.border }}
-            >
-              <cfg.Icon size={9} /> {cfg.label}
-            </span>
-
-            <div className="dh-card__title dh-card__title--inline">
-              {card.title}
-            </div>
+        <div
+          className="dh-card__header"
+          style={{
+            background: cfg.color,
+            borderBottomColor: cfg.border,
+            color: cfg.textOnColor,
+            paddingRight: 24,
+          }}
+        >
+          <div className="dh-card__title">
+            {card.title}
           </div>
+        </div>
 
+        <div className="dh-card__body">
           {/* Content (expanded only) */}
           {card.is_expanded && bodyLines.length > 0 && (
-            <div className="dh-card__content" style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div className="dh-card__content">
               {bodyLines.map((line, index) => (
                 <div key={`${index}-${line}`}>{line}</div>
               ))}

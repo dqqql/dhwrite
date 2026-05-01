@@ -13,6 +13,7 @@ export type CardVisualConfig = {
   color: string
   bg: string
   border: string
+  textOnColor: string
   Icon: React.FC<{ size?: number }>
 }
 
@@ -68,6 +69,14 @@ function withAlpha(hex: string, alpha: number, fallback: string) {
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`
 }
 
+function getReadableTextColor(hex: string) {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return '#f8fafc'
+
+  const brightness = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000
+  return brightness > 170 ? '#0f172a' : '#f8fafc'
+}
+
 export function getCardTypeLabel(type: CardType): string {
   return resolveCardTypeConfig(type).label
 }
@@ -81,6 +90,7 @@ export function getCardVisualConfig(type: CardType, accentColor?: string): CardV
     color,
     bg: withAlpha(color, 0.12, withAlpha(base.defaultColor, 0.12, 'rgba(15, 23, 42, 0.08)')),
     border: withAlpha(color, 0.28, withAlpha(base.defaultColor, 0.28, 'rgba(15, 23, 42, 0.16)')),
+    textOnColor: getReadableTextColor(color),
     Icon: base.Icon,
   }
 }

@@ -889,7 +889,7 @@ function CardTravelAnimationOverlay({
         width: baseRect.width,
         height: baseRect.height,
         background: 'rgba(255,255,255,0.96)',
-        borderLeft: `4px solid ${cfg.color}`,
+        borderColor: cfg.border,
         boxShadow: direction === 'to-map'
           ? (entered ? `0 1px 2px rgba(15,23,42,0.12), 0 0 0 2px ${(playerColor ?? cfg.color)}22` : '0 10px 24px rgba(15,23,42,0.2)')
           : (entered ? '0 10px 24px rgba(15,23,42,0.16)' : `0 1px 2px rgba(15,23,42,0.12), 0 0 0 2px ${(playerColor ?? cfg.color)}22`),
@@ -918,18 +918,17 @@ function CardTravelAnimationOverlay({
         />
       )}
 
-      <div style={{ padding: '8px 10px 24px' }}>
-        <div className="dh-card__header-row" style={{ paddingRight: 12 }}>
-          <span
-            className="dh-card__type-badge"
-            style={{ background: cfg.bg, color: cfg.color, borderColor: cfg.border }}
-          >
-            <cfg.Icon size={9} /> {cfg.label}
-          </span>
-
-          <div className="dh-card__title dh-card__title--inline">
-            {card.title}
-          </div>
+      <div
+        className="dh-card__header"
+        style={{
+          background: cfg.color,
+          borderBottomColor: cfg.border,
+          color: cfg.textOnColor,
+          paddingRight: 24,
+        }}
+      >
+        <div className="dh-card__title">
+          {card.title}
         </div>
       </div>
     </div>
