@@ -1,6 +1,4 @@
-import emberFrontier from './ember-frontier.dhpack.json'
-import skyArchipelago from './sky-archipelago.dhpack.json'
-import tideRuins from './tide-ruins.dhpack.json'
+import fiveFlagsToFlame from './five-flags-to-flame.dhpack.json'
 import { assertDhPack } from '../validators'
 import type { DhPack } from '../types'
 
@@ -27,16 +25,8 @@ function defineBuiltInPack(
 }
 
 export const BUILT_IN_PACKS: BuiltInPack[] = [
-  defineBuiltInPack(emberFrontier, {
-    id: 'test-ember-frontier',
-    description: '焦土边境上的据点、规则与委托，适合从角色启程开始铺开冲突。',
-  }),
-  defineBuiltInPack(tideRuins, {
-    id: 'test-tide-ruins',
-    description: '沉没古城、海上市集与突发事件并存，适合探索、追索和交易线索。',
-  }),
-  defineBuiltInPack(skyArchipelago, {
-    id: 'test-sky-archipelago',
-    description: '漂浮群岛、航路秩序与高空异变交织，适合塑造旅程、相遇和灾变前兆。',
+  defineBuiltInPack(fiveFlagsToFlame, {
+    id: 'campaign-five-flags-to-flame',
+    description: '官方战役框架提取版，聚焦边境停战、五国角力、神权断层与魔导革命。',
   }),
 ]

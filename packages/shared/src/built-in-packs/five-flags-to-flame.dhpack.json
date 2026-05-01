@@ -1,0 +1,212 @@
+{
+  "format": "dhpack",
+  "version": 1,
+  "id": "campaign-five-flags-to-flame",
+  "pack_name": "五旗成焰",
+  "description": "五国冷战、边境停战、神权断层与魔导革命。内容只给方向，细节留给玩家共创。",
+  "cards": [
+    {
+      "id": "fftf-location-thunder-valley",
+      "type": "Location",
+      "title": "雷霆谷",
+      "content": "停战边镇，外交、间谍与失踪案交汇的风暴口。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "fftf-location-crown-peak",
+      "type": "Location",
+      "title": "冠世峰",
+      "content": "旧神圣座遗址，神权正统与空壳真相并存。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "fftf-location-rustwater-port",
+      "type": "Location",
+      "title": "锈水走私港",
+      "content": "迷雾海岸的黑市港口，违禁技术、私掠船和彩礼都在这里流转。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "fftf-location-ashen-span",
+      "type": "Location",
+      "title": "灰烬断桥",
+      "content": "捷胜与沃丹之间最危险的陆路关口，桥下还埋着战争遗雷。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "fftf-location-glimmering-quarry",
+      "type": "Location",
+      "title": "荧光采掘场",
+      "content": "极星会的战略矿坑，劳工、暴动与古神遗骸一起被挖了出来。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "fftf-location-spire-of-confession",
+      "type": "Location",
+      "title": "告解尖塔",
+      "content": "边境黑狱与审判塔，异端在这里失声，秘密在高层发霉。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "fftf-location-cloudbreaker-wreck",
+      "type": "Location",
+      "title": "飞空艇“破云号”残骸",
+      "content": "坠毁在无主之地的实验飞空艇，所有人都想先捡到它的原型机。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "fftf-feature-fragile-truce",
+      "type": "Feature",
+      "title": "脆弱的停战协定",
+      "content": "大战停了，暗战没有；公开和平只是另一种开战方式。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-magitech-revolution",
+      "type": "Feature",
+      "title": "魔导革命",
+      "content": "新技术重写力量平衡，也让窃取、走私和资源争夺全面升级。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-faith-monopoly",
+      "type": "Feature",
+      "title": "神圣垄断与信仰断层",
+      "content": "诸神离去后，解释神意的人反而掌握了最多权力。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-unexploded-arcane-ordnance",
+      "type": "Feature",
+      "title": "未爆的奥术军火",
+      "content": "荒野仍在打旧战争，一脚走错就可能踩响昨天的炮火。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-tech-faith-inquisition",
+      "type": "Feature",
+      "title": "科技与信仰的隔离审查",
+      "content": "某些地方不欢迎魔导造物，带着它们进城就像带着罪证。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-booming-black-market",
+      "type": "Feature",
+      "title": "黑市繁荣",
+      "content": "正规渠道买不到的东西，黑市能卖；代价通常不是钱。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-eyes-everywhere",
+      "type": "Feature",
+      "title": "谍影重重",
+      "content": "酒保、向导和雇主都可能在替别人记下你的名字。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-airship-supremacy",
+      "type": "Feature",
+      "title": "飞空艇航线制空权",
+      "content": "天空属于飞艇，地上的人最好学会躲起来。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-sail-fleet-alliance",
+      "type": "Feature",
+      "title": "舰帆联盟",
+      "content": "海权商盟，逐利、通商，也擅长把私掠包装成生意。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-crown-peak-holy-see",
+      "type": "Feature",
+      "title": "冠峰圣座",
+      "content": "神权巨塔仍在发号施令，即使神可能早已不再回应。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-jiesheng-republic",
+      "type": "Feature",
+      "title": "捷胜共和国",
+      "content": "年轻的革命国家，想复仇，也想证明独立不是短命火焰。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-polaris-order",
+      "type": "Feature",
+      "title": "极星会",
+      "content": "技术立国的改革派，掌握未来，也因此成为所有人的目标。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-wodan-kingdom",
+      "type": "Feature",
+      "title": "沃丹王国",
+      "content": "古老王国正在衰退，于是它比从前更骄傲，也更危险。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-double-agent-envoy",
+      "type": "Feature",
+      "title": "双面间谍 / 外交特使",
+      "content": "你看到的是使节，别人看到的是会说谎的通行证。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-war-survivor-veteran",
+      "type": "Feature",
+      "title": "战后遗孤 / 老兵",
+      "content": "战争结束了，但有些人直到今天仍住在那场战争里。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-feature-magitech-seeker",
+      "type": "Feature",
+      "title": "魔导技师 / 探求者",
+      "content": "有人追逐新技术，有人追逐古遗物，通常两者都会先追上麻烦。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "fftf-hook-thunder-valley-kidnapping",
+      "type": "Hook",
+      "title": "雷霆谷绑架案",
+      "content": "联姻路上的关键人物在停战边镇失踪，谁先找到他，谁就先改写局势。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "fftf-hook-defecting-magitech-mentor",
+      "type": "Hook",
+      "title": "叛逃的魔导导师",
+      "content": "带着核心蓝图的技师想换阵营，护送他的人注定会先被所有人追上。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "fftf-hook-blood-on-the-shrine",
+      "type": "Hook",
+      "title": "神坛之血",
+      "content": "边境神官被杀，凶器指向敌国；如果今晚前找不到真凶，村子就会先死。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "fftf-hook-midnight-blueprint-auction",
+      "type": "Hook",
+      "title": "午夜的图纸拍卖",
+      "content": "一份边境布防图在黑市拍卖，灯一灭，所有买家都变成了嫌疑人。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "fftf-hook-quarry-uprising",
+      "type": "Hook",
+      "title": "矿区暴动",
+      "content": "被压榨的劳工劫持了矿坑与人质，镇暴队赶来前必须有人先做决定。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "fftf-hook-smuggler-distress-signal",
+      "type": "Hook",
+      "title": "走私船的求救信号",
+      "content": "搁浅走私船、昏迷船员、王室铁箱；开箱的人默认接下整场追杀。",
+      "style": "#2563eb"
+    }
+  ]
+}
