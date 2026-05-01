@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { fetchDhRoomBackup } from '@/lib/realtime'
 import { useStore } from '@/store/useStore'
 import { getCardBodyText } from '@/utils/cardText'
@@ -10,6 +10,7 @@ import {
   FileJson,
   FileText,
   Hash,
+  HelpCircle,
   Layers,
   LogOut,
   Play,
@@ -19,8 +20,10 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react'
+import { TutorialModal } from '@/components/ui/TutorialModal'
 
 export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
+  const [showTutorial, setShowTutorial] = useState(false)
   const {
     room,
     currentPlayerId,
@@ -325,6 +328,44 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
         </>
       )}
 
+      <button
+        onClick={() => setShowTutorial(true)}
+        title="使用教程"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '5px 11px',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid rgba(37,99,235,0.28)',
+          background: 'linear-gradient(135deg, rgba(37,99,235,0.10), rgba(124,58,237,0.08))',
+          color: 'var(--accent-violet)',
+          cursor: 'pointer',
+          fontSize: 12,
+          fontWeight: 700,
+          fontFamily: 'inherit',
+          letterSpacing: '0.02em',
+          transition: 'all 180ms cubic-bezier(0.4,0,0.2,1)',
+          boxShadow: '0 1px 4px rgba(37,99,235,0.10)',
+          whiteSpace: 'nowrap',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(124,58,237,0.14))'
+          e.currentTarget.style.transform = 'translateY(-1px)'
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.20)'
+          e.currentTarget.style.borderColor = 'rgba(37,99,235,0.45)'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.10), rgba(124,58,237,0.08))'
+          e.currentTarget.style.transform = ''
+          e.currentTarget.style.boxShadow = '0 1px 4px rgba(37,99,235,0.10)'
+          e.currentTarget.style.borderColor = 'rgba(37,99,235,0.28)'
+        }}
+      >
+        <HelpCircle size={13} />
+        使用教程
+      </button>
+
       <button className="btn btn-ghost btn-icon" onClick={openRoomSettings} title="房间设置">
         <Settings size={15} />
       </button>
@@ -340,6 +381,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
       >
         <LogOut size={13} /> 退出
       </button>
+      {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
     </div>
   )
 }

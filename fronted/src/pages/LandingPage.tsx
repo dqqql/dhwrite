@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useStore } from '@/store/useStore'
-import { AlertTriangle, LogIn, Plus } from 'lucide-react'
+import { AlertTriangle, LogIn, Plus, BookOpen } from 'lucide-react'
+import { TutorialModal } from '@/components/ui/TutorialModal'
 
 interface LandingPageProps {
   onEnterRoom: () => void
@@ -12,6 +13,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
   const [roomName, setRoomName] = useState('')
   const [nickname, setNickname] = useState('')
   const [inviteCode, setInviteCode] = useState('')
+  const [showTutorial, setShowTutorial] = useState(false)
 
   async function handleCreate(event: React.FormEvent) {
     event.preventDefault()
@@ -89,6 +91,50 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
           pointerEvents: 'none',
         }}
       />
+
+      {/* Tutorial button — top right */}
+      <button
+        onClick={() => setShowTutorial(true)}
+        style={{
+          position: 'absolute',
+          top: 20,
+          right: 24,
+          zIndex: 10,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+          padding: '8px 16px',
+          borderRadius: 'var(--radius-sm)',
+          border: '1px solid rgba(37,99,235,0.30)',
+          background: 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(124,58,237,0.10))',
+          color: 'var(--accent-violet)',
+          cursor: 'pointer',
+          fontSize: 13,
+          fontWeight: 700,
+          fontFamily: 'inherit',
+          letterSpacing: '0.02em',
+          backdropFilter: 'blur(8px)',
+          transition: 'all 180ms cubic-bezier(0.4,0,0.2,1)',
+          boxShadow: '0 2px 8px rgba(37,99,235,0.12)',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.20), rgba(124,58,237,0.16))'
+          e.currentTarget.style.transform = 'translateY(-1px)'
+          e.currentTarget.style.boxShadow = '0 6px 16px rgba(37,99,235,0.22)'
+          e.currentTarget.style.borderColor = 'rgba(37,99,235,0.50)'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(124,58,237,0.10))'
+          e.currentTarget.style.transform = ''
+          e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.12)'
+          e.currentTarget.style.borderColor = 'rgba(37,99,235,0.30)'
+        }}
+      >
+        <BookOpen size={15} />
+        使用教程
+      </button>
+
+      {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
 
       <div style={{ width: '100%', maxWidth: 440, padding: '0 20px', position: 'relative', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
