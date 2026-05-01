@@ -231,7 +231,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
         </div>
 
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: 'var(--text-muted)' }}>
-          基于《匕首之心》TRPG · 当前为前后端联调原型
+          基于《匕首之心》TRPG · 多人共创与地图协作
         </div>
       </div>
     </div>

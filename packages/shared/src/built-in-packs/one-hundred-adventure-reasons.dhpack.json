@@ -2,8 +2,8 @@
   "format": "dhpack",
   "version": 1,
   "id": "adventure-reasons-100",
-  "pack_name": "100个冒险理由",
-  "description": "一百条适用于奇幻桌游与角色扮演的冒险起因，每条都是一个可直接落地的剧情钩子。",
+  "pack_name": "一百条冒险理由",
+  "description": "百条可直接投入战役的动机、委托与冲突引子。",
   "cards": [
     {
       "id": "reason-001-search-missing-kin",

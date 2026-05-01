@@ -1,310 +1,310 @@
 {
-    "format":  "dhpack",
-    "version":  1,
-    "id":  "campaign-age-of-umbra",
-    "pack_name":  "暗影纪元",
-    "description":  "圣火庇护、亡灵诅咒、旧世废墟与末世暗影。",
-    "cards":  [
-                  {
-                      "id":  "shadow-location-okros",
-                      "type":  "Location",
-                      "title":  "奥克罗斯",
-                      "content":  "位于群山环抱的圣像盆地沼泽之中，被熔铸盾牌与巨石构成的巍峨城墙环绕，中央燃烧着巨大的圣火堆。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-shaka-abyss",
-                      "type":  "Location",
-                      "title":  "煞刻深渊",
-                      "content":  "因突发地震在山谷中撕裂出的巨大陷坑，坑底暴露出掩埋许久的旧世界建筑遗迹与地下坟场。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-amber-haven",
-                      "type":  "Location",
-                      "title":  "琥珀港",
-                      "content":  "悲裂山西侧的失落都城，布满残破的哥特尖塔与门楼，现已化为邪异横行的庞大废墟。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-cerulean-academy",
-                      "type":  "Location",
-                      "title":  "塞尔西恩学府",
-                      "content":  "位于琥珀港废墟的“烬唤区”，曾是学术圣地，现被坚忍族改建为抵御黑暗与怪物的堡垒要塞。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-cinnabar-district",
-                      "type":  "Location",
-                      "title":  "辰砂区",
-                      "content":  "琥珀港废墟中的另一片街区，满是残垣断壁的无主之地，被匪帮势力占据。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-sorrow-rift-mountains",
-                      "type":  "Location",
-                      "title":  "悲裂山脉",
-                      "content":  "多变且险峻的山脉，冷风长年不息。跨越巨大裂隙的网络由古木与岩石桥梁构成，连接着山岭之民的聚落。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-avedura",
-                      "type":  "Location",
-                      "title":  "阿维杜拉",
-                      "content":  "悲裂山脉之外的腐化丛林，蔓生的林地中充盈着黑暗魔力，潜伏着致命的变异野兽。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-drowned-mans-ford",
-                      "type":  "Location",
-                      "title":  "溺亡者浅滩",
-                      "content":  "圣像盆地外围的一片毒水沼泽，淤泥中沉睡着旧时代的战争残骸，常有发光的迷雾笼罩。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-whispering-spire",
-                      "type":  "Location",
-                      "title":  "低语断塔",
-                      "content":  "荒原中突兀耸立的半截黑石高塔，当阴霾中的狂风穿过塔身裂缝时，会发出形似古神祷告的刺耳哀鸣。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-ember-delve",
-                      "type":  "Location",
-                      "title":  "余烬矿道",
-                      "content":  "幽闭的地下网道系统，墙壁的岩层偶尔会渗出灼热的暗红色流浆，是地下之民避难的迷宫。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-bay-of-hollows",
-                      "type":  "Location",
-                      "title":  "沉骸海湾",
-                      "content":  "海岸线上的破败港口，灰烬之海的怒涛不断冲刷着礁石，废弃的巨型木船倒扣在滩涂上成为临时营地。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-location-glimmering-glade",
-                      "type":  "Location",
-                      "title":  "微光空地",
-                      "content":  "腐化丛林深处极其罕见的天然以太净土，生长着发散幽蓝荧光的神圣植物群落。",
-                      "style":  "#22c55e"
-                  },
-                  {
-                      "id":  "shadow-feature-wither-plague",
-                      "type":  "Feature",
-                      "title":  "凋零病",
-                      "content":  "灵魂轮回断裂的诅咒。所有生灵死后，其肉体将转化为腐化的亡灵丧尸，灵魂会被暗影同化并寻找新宿主。",
-                      "style":  "#a855f7"
-                  },
-                  {
-                      "id":  "shadow-feature-blazing-beacon",
-                      "type":  "Feature",
-                      "title":  "炽焰信标",
-                      "content":  "旧世界遗留的“受祝薪柴”点燃的圣火。能在聚落中心划出安全区，用神力光芒驱退几乎一切暗影与邪异。一旦熄灭，聚落即刻覆灭。",
-                      "style":  "#a855f7"
-                  },
-                  {
-                      "id":  "shadow-feature-creeping-darkness",
-                      "type":  "Feature",
-                      "title":  "伏行之暗",
-                      "content":  "无光之处飘忽不定的恶意灵体洪流。会像黑风般席卷荒原，诱发活人的绝望、谵妄，并扭曲同化其血肉。",
-                      "style":  "#a855f7"
-                  },
-                  {
-                      "id":  "shadow-feature-eternal-haze-transient-storms",
-                      "type":  "Feature",
-                      "title":  "永恒阴霾与瞬态风暴",
-                      "content":  "天穹永远被浑浊阴霾遮蔽，难见天日。荒野上空常凝聚由扭曲灵魂组成的“瞬态风暴”，会融入并变异下方的野兽。",
-                      "style":  "#a855f7"
-                  },
-                  {
-                      "id":  "shadow-feature-mistrust-of-magic",
-                      "type":  "Feature",
-                      "title":  "魔法嫌恶",
-                      "content":  "社会普遍认为“以太织法”等魔法是触怒神明、招致末日的原罪。织法者和神使在施法时容易招致暴徒的恐慌与仇杀放逐。",
-                      "style":  "#a855f7"
-                  },
-                  {
-                      "id":  "shadow-feature-blood-moon-tide",
-                      "type":  "Feature",
-                      "title":  "血月潮汐",
-                      "content":  "当厚重阴霾罕见散去、露出猩红月相的夜晚，暗影魔物的力量会呈指数级暴涨，圣火堆的柴薪消耗速度翻倍。",
-                      "style":  "#a855f7"
-                  },
-                  {
-                      "id":  "shadow-feature-toll-of-the-dead",
-                      "type":  "Feature",
-                      "title":  "丧钟共鸣",
-                      "content":  "一旦有人在野外惨死，其绝望的情绪会在以太中产生涟漪，一小时内必会吸引远处的梦魇邪异蜂拥而至。",
-                      "style":  "#a855f7"
-                  },
-                  {
-                      "id":  "shadow-feature-ash-walker-trade",
-                      "type":  "Feature",
-                      "title":  "余灰行商",
-                      "content":  "游走在聚落间的法外之民，常把旧世界的遗物与骨灰混合制成护身符进行高价交易，被正统信仰者视为异端。",
-                      "style":  "#a855f7"
-                  },
-                  {
-                      "id":  "shadow-feature-soul-eating-fog",
-                      "type":  "Feature",
-                      "title":  "食灵之雾",
-                      "content":  "腐化丛林或沼泽中偶尔升起的粘稠紫雾。在雾中待得越久，越会遗忘自己最珍视的记忆，最终沦为无心智的空壳。",
-                      "style":  "#a855f7"
-                  },
-                  {
-                      "id":  "shadow-feature-echoed-nightmares",
-                      "type":  "Feature",
-                      "title":  "残响梦魇",
-                      "content":  "在旧世界遗迹附近入睡的凡人，必定会在梦中被迫体验该城市当年被神罚毁灭瞬间的剧痛与绝望。",
-                      "style":  "#a855f7"
-                  },
-                  {
-                      "id":  "shadow-faction-the-enduring",
-                      "type":  "Hook",
-                      "title":  "坚忍族",
-                      "content":  "在废土中点燃圣火、结寨自保的普通幸存者，依靠强悍的狩猎队外出搜寻物资与旧世遗物维生。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "shadow-faction-cerulean-faction",
-                      "type":  "Hook",
-                      "title":  "塞尔西恩派",
-                      "content":  "驻守琥珀港学府要塞的博识之民，试图保护失落的古代知识与以太织法，抵抗死灵冲击。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "shadow-faction-brocade-queen-gang",
-                      "type":  "Hook",
-                      "title":  "锦缎女王的匪帮",
-                      "content":  "占据琥珀港辰砂区的地痞、无赖与暴徒，奉行“今朝有酒今朝醉”，靠暴力在废墟中自立为王。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "shadow-faction-zealots-of-atonement",
-                      "type":  "Hook",
-                      "title":  "赎罪狂信者",
-                      "content":  "坚信神王背叛是灾祸之源的极端宗教分子，狂热地试图与离位的众神建立联系以求宽恕。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "shadow-faction-secret-society",
-                      "type":  "Hook",
-                      "title":  "隐秘结社",
-                      "content":  "暗中行动的学者与探险家，认为救赎的关键藏在神王奥瑟迪亚斯的禁忌历史与典籍中。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "shadow-hook-light-vs-darkness",
-                      "type":  "Hook",
-                      "title":  "绝对黑暗 vs 微弱光明",
-                      "content":  "聚落对“受祝薪柴”有着病态的渴求，圣火的日常维系与荒野外无尽的“伏行之暗”形成不可调和的生存死局。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "shadow-hook-civilization-vs-wasteland",
-                      "type":  "Hook",
-                      "title":  "文明复辟 vs 废土丛林法则",
-                      "content":  "在琥珀港的废墟巷战中，试图复兴旧世界道德与知识的“学府派”，正面临狂热且只在乎眼前利益的“锦缎女王匪帮”的残酷蚕食。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "shadow-hook-knowledge-vs-superstition",
-                      "type":  "Hook",
-                      "title":  "知识救赎 vs 群体迷信",
-                      "content":  "唯一的超凡力量“以太织法”是应对暗影的利器，但施法者却面临被社群视为“灾祸根源”而遭到私刑迫害的风险。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "shadow-hook-waiting-death-vs-leaving-death",
-                      "type":  "Hook",
-                      "title":  "守城等死 vs 出城送命",
-                      "content":  "坚忍族必须外出搜刮补给，但野外随时有将人同化的瞬态风暴与梦魇邪异，外出的狩猎队常常面临“牺牲少数以换取大部队存活”的残酷道德抉择。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "umbra-hook-rescue-at-shaka-abyss",
-                      "type":  "Hook",
-                      "title":  "诡音深渊的搜救",
-                      "content":  "你原本在圣像盆地的奥克罗斯堡垒村庄中，作为守卫或普通猎人苟活于圣火堆的庇护下。猎人大师埃弗拉多斯在探索煞刻深渊时被怪物抓走，如今高墙外终日回荡着他与其他失踪队员被怪物窃取后的非人呼救声。受长老阿卡多娜的绝望恳求，你必须探查求救声源头，拯救失踪猎人；若无法拯救，就终结他们的痛苦。你将卷入煞刻深渊、陷坑地下坟场、失落的无名神殿与被暗影深度扭曲的影触生物。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "umbra-hook-missing-tomb-warden",
-                      "type":  "Hook",
-                      "title":  "寻觅失联的守墓人",
-                      "content":  "你原本是世代守望山间古墓与旧世界遗址的山岭之民。一年前，一位与你缔结深厚情谊的童年挚友或对手，因某项秘密任务离家远行，从此再无音讯。你必须顺着险峻山岩与古木桥梁网络，寻找挚友下落，并查明是什么迫使他们打破古老誓言；你将卷入危险的山间商路、游荡着掠食者的山峰裂隙，以及隐藏旧世界秘密的遗址。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "umbra-hook-blessed-kindling-of-hope",
-                      "type":  "Hook",
-                      "title":  "重燃希望的受祝薪柴",
-                      "content":  "你原本在一个面临资源枯竭或正被暗影逐步吞噬的小型聚落中，担任护火人或斥候。你的社群已经无法维持现有防线，必须向外围扩张或寻找新的避难所。你被托付了一根承载神力碎片的受祝薪柴，必须护送它前往战略要地，点燃新的圣火堆并建立新营垒；途中你将穿越无光之地、伏行之暗盘踞的危险荒野，并面对渴望夺取圣火的绝望流民或邪教徒。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "umbra-hook-redemption-to-cleanse-the-world",
-                      "type":  "Hook",
-                      "title":  "净世的救赎之法",
-                      "content":  "你原本是保有旧世知识的学者，或是能够施展疗愈仪式的神使与法师。你发现宁静疆域的灵魂轮回已经断裂，死者都会转化为腐化亡灵，但你深信黑暗中仍有转机。你必须寻找传闻中失落神祠与圣地残存的神力，证明暗影并非纯粹邪恶，并寻得净化灵魂凋零诅咒的救赎魔法；你将面对狂信者对魔法的迫害、埋葬神王奥瑟迪亚斯真相的古老图书馆，以及可能留存希望的旧世大教堂废墟。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "umbra-hook-amber-haven-ruin-war",
-                      "type":  "Hook",
-                      "title":  "琥珀港的废墟争夺战",
-                      "content":  "你原本是在琥珀港烬唤区塞尔西恩学府抵抗黑暗的坚忍族，或是为帮派效力的法外之民。你所属的势力——学府或锦缎女王的帮派——下达死命令，要求夺回城市街道控制权或搜刮特定旧世资源。你必须从充满怪物与掠食者的空荡宅邸中抢夺资源，或向夺走你名声与同伴的敌对帮派复仇；你将卷入琥珀港残垣断壁中的街巷战、锦缎女王麾下的无赖匪徒，以及可能存在的废土黑市交易网络。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "umbra-hook-nightmare-at-your-back",
-                      "type":  "Hook",
-                      "title":  "背后的无尽梦魇",
-                      "content":  "你原本是世代迁徙的漂泊之民，或家园刚刚覆灭的难民。你们的聚落圣火已经熄灭，或者你们不慎招惹了荒野中因灵魂堕落而扭曲的恐怖存在，为了逃离毁灭只能抛弃家乡。你必须躲避尾随而至的畸变梦魇，以及如风暴般吞噬血肉的无形暗影实体；你将卷入对外来者严加防范的堡垒城镇、变幻无常的灰烬之海海岸线与致命混沌的荒原。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "umbra-hook-plunder-echoes-of-the-old-world",
-                      "type":  "Hook",
-                      "title":  "掠夺旧世的残响",
-                      "content":  "你原本是地下之民中的拾荒人、盗墓者，或曾经过着奢侈生活但如今没落的高城之民。在这个末日时代，奢侈虽稀缺却仍然纸醉金迷；你不甘心在泥土与酸蚁中度过一生，渴望重返或跻身权力与财富核心。你必须深入幽闭地下城区或危机四伏的都市遗迹，发掘前朝权贵遗物、古老符文武器或失传典籍，以换取声誉与资源；你将卷入崩落掩埋的地窟都市、被邪异盘踞的古堡宅邸，以及统治阶级内部的尔虞我诈。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "supplement-umbra-hook-thief-of-brocade",
-                      "type":  "Hook",
-                      "title":  "窃取锦缎的女贼",
-                      "content":  "你原本在废土城市琥珀港的辰砂区，依附于锦缎女王麾下的帮派苟活。在某次劫掠中，你偷走了一件从旧世废墟中挖出的遗物，它疑似带有纯净神力，也因此彻底惹怒了女王本人。你必须逃离琥珀港残垣断壁间的追杀，把遗物送到塞尔西恩学府的学者手中，换取进入要塞安全区的资格；你将卷入琥珀港空荡宅邸中的街巷战、残忍帮派与学府守卫的严厉猜忌。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "supplement-umbra-hook-mutating-outcast",
-                      "type":  "Hook",
-                      "title":  "异化边缘的流亡者",
-                      "content":  "你原本在荒野之地勉强维持生计。灵魂凋零的诅咒开始在你身上显现，你的身体发生了可怕的畸形异变，而周围的人把这种变化视为不祥征兆。在彻底沦为被暗影操控的堕落者之前，你必须离开家乡，寻找传说中未被腐蚀的远古圣所，或找到能施展疗愈仪式的人；你将卷入极端排斥变异者的狂信者派系，以及充盈黑暗魔力与天然以太的林间空地。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "supplement-umbra-hook-blasphemous-aether-scholar",
-                      "type":  "Hook",
-                      "title":  "渎神的以太学者",
-                      "content":  "你原本藏身于旧世界图书馆废墟中，私下研习禁忌的以太织法。你的聚落认为以太织法是招致蒙面诸神怒火、开启暗影纪元的罪魁祸首；你因施展魔法暴露而被剥夺资源、残忍放逐。你想在废土中寻找失落大仲裁团的隐秘典籍，向世人证明以太织法不仅能毁灭，更是净化宁静疆域的唯一钥匙；你将卷入猜忌魔法的暴民迫害，以及埋葬神王奥瑟迪亚斯罪行真相的大教堂废墟。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "supplement-umbra-hook-false-oracle-with-kindling",
-                      "type":  "Hook",
-                      "title":  "背负神谕的骗子",
-                      "content":  "你原本游走于各个幸存者据点之间，靠骗吃骗喝活命。某天你偶然在废土坑洞里捡到一根罕见的受祝薪柴，随即被一个家园刚刚毁灭的绝望小聚落误认为传说中的先知。你本想半夜开溜，但看到他们绝望的眼神和外面徘徊的腐化亡灵，只能硬着头皮装下去，靠这根薪柴护送他们寻找新的堡垒；你将卷入资源匮乏且充满猜忌的难民营地，以及黑暗中渴望夺取受祝薪柴的梦魇怪物。",
-                      "style":  "#2563eb"
-                  },
-                  {
-                      "id":  "supplement-umbra-hook-nightmare-hunter-of-the-marsh",
-                      "type":  "Hook",
-                      "title":  "猎杀梦魇的泥沼独行者",
-                      "content":  "你原本生活在圣像盆地南部边缘，靠近腐化丛林阿维杜拉的泥沼地带。一场由扭曲灵魂聚合而成的暗影瞬态风暴摧毁了你的小村庄，只剩你一人生还。那团风暴中的暗影附身在一头沼泽巨兽身上，你发誓要单枪匹马猎杀这只吸收了同胞灵魂的融合梦魇；你将卷入致命混沌的荒原生态，以及因灵魂堕落而扭曲并不断进化的影触生物群体。",
-                      "style":  "#2563eb"
-                  }
-              ]
+  "format": "dhpack",
+  "version": 1,
+  "id": "campaign-age-of-umbra",
+  "pack_name": "暗影纪元",
+  "description": "圣火庇护、亡灵诅咒、旧世废墟与末世暗影。",
+  "cards": [
+    {
+      "id": "shadow-location-okros",
+      "type": "Location",
+      "title": "奥克罗斯",
+      "content": "位于群山环抱的圣像盆地沼泽之中，被熔铸盾牌与巨石构成的巍峨城墙环绕，中央燃烧着巨大的圣火堆。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-shaka-abyss",
+      "type": "Location",
+      "title": "煞刻深渊",
+      "content": "因突发地震在山谷中撕裂出的巨大陷坑，坑底暴露出掩埋许久的旧世界建筑遗迹与地下坟场。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-amber-haven",
+      "type": "Location",
+      "title": "琥珀港",
+      "content": "悲裂山西侧的失落都城，布满残破的哥特尖塔与门楼，现已化为邪异横行的庞大废墟。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-cerulean-academy",
+      "type": "Location",
+      "title": "塞尔西恩学府",
+      "content": "位于琥珀港废墟的“烬唤区”，曾是学术圣地，现被坚忍族改建为抵御黑暗与怪物的堡垒要塞。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-cinnabar-district",
+      "type": "Location",
+      "title": "辰砂区",
+      "content": "琥珀港废墟中的另一片街区，满是残垣断壁的无主之地，被匪帮势力占据。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-sorrow-rift-mountains",
+      "type": "Location",
+      "title": "悲裂山脉",
+      "content": "多变且险峻的山脉，冷风长年不息。跨越巨大裂隙的网络由古木与岩石桥梁构成，连接着山岭之民的聚落。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-avedura",
+      "type": "Location",
+      "title": "阿维杜拉",
+      "content": "悲裂山脉之外的腐化丛林，蔓生的林地中充盈着黑暗魔力，潜伏着致命的变异野兽。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-drowned-mans-ford",
+      "type": "Location",
+      "title": "溺亡者浅滩",
+      "content": "圣像盆地外围的一片毒水沼泽，淤泥中沉睡着旧时代的战争残骸，常有发光的迷雾笼罩。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-whispering-spire",
+      "type": "Location",
+      "title": "低语断塔",
+      "content": "荒原中突兀耸立的半截黑石高塔，当阴霾中的狂风穿过塔身裂缝时，会发出形似古神祷告的刺耳哀鸣。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-ember-delve",
+      "type": "Location",
+      "title": "余烬矿道",
+      "content": "幽闭的地下网道系统，墙壁的岩层偶尔会渗出灼热的暗红色流浆，是地下之民避难的迷宫。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-bay-of-hollows",
+      "type": "Location",
+      "title": "沉骸海湾",
+      "content": "海岸线上的破败港口，灰烬之海的怒涛不断冲刷着礁石，废弃的巨型木船倒扣在滩涂上成为临时营地。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-location-glimmering-glade",
+      "type": "Location",
+      "title": "微光空地",
+      "content": "腐化丛林深处极其罕见的天然以太净土，生长着发散幽蓝荧光的神圣植物群落。",
+      "style": "#22c55e"
+    },
+    {
+      "id": "shadow-feature-wither-plague",
+      "type": "Feature",
+      "title": "凋零病",
+      "content": "灵魂轮回断裂的诅咒。所有生灵死后，其肉体将转化为腐化的亡灵丧尸，灵魂会被暗影同化并寻找新宿主。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "shadow-feature-blazing-beacon",
+      "type": "Feature",
+      "title": "炽焰信标",
+      "content": "旧世界遗留的“受祝薪柴”点燃的圣火。能在聚落中心划出安全区，用神力光芒驱退几乎一切暗影与邪异。一旦熄灭，聚落即刻覆灭。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "shadow-feature-creeping-darkness",
+      "type": "Feature",
+      "title": "伏行之暗",
+      "content": "无光之处飘忽不定的恶意灵体洪流。会像黑风般席卷荒原，诱发活人的绝望、谵妄，并扭曲同化其血肉。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "shadow-feature-eternal-haze-transient-storms",
+      "type": "Feature",
+      "title": "永恒阴霾与瞬态风暴",
+      "content": "天穹永远被浑浊阴霾遮蔽，难见天日。荒野上空常凝聚由扭曲灵魂组成的“瞬态风暴”，会融入并变异下方的野兽。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "shadow-feature-mistrust-of-magic",
+      "type": "Feature",
+      "title": "魔法嫌恶",
+      "content": "社会普遍认为“以太织法”等魔法是触怒神明、招致末日的原罪。织法者和神使在施法时容易招致暴徒的恐慌与仇杀放逐。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "shadow-feature-blood-moon-tide",
+      "type": "Feature",
+      "title": "血月潮汐",
+      "content": "当厚重阴霾罕见散去、露出猩红月相的夜晚，暗影魔物的力量会呈指数级暴涨，圣火堆的柴薪消耗速度翻倍。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "shadow-feature-toll-of-the-dead",
+      "type": "Feature",
+      "title": "丧钟共鸣",
+      "content": "一旦有人在野外惨死，其绝望的情绪会在以太中产生涟漪，一小时内必会吸引远处的梦魇邪异蜂拥而至。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "shadow-feature-ash-walker-trade",
+      "type": "Feature",
+      "title": "余灰行商",
+      "content": "游走在聚落间的法外之民，常把旧世界的遗物与骨灰混合制成护身符进行高价交易，被正统信仰者视为异端。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "shadow-feature-soul-eating-fog",
+      "type": "Feature",
+      "title": "食灵之雾",
+      "content": "腐化丛林或沼泽中偶尔升起的粘稠紫雾。在雾中待得越久，越会遗忘自己最珍视的记忆，最终沦为无心智的空壳。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "shadow-feature-echoed-nightmares",
+      "type": "Feature",
+      "title": "残响梦魇",
+      "content": "在旧世界遗迹附近入睡的凡人，必定会在梦中被迫体验该城市当年被神罚毁灭瞬间的剧痛与绝望。",
+      "style": "#a855f7"
+    },
+    {
+      "id": "shadow-faction-the-enduring",
+      "type": "Hook",
+      "title": "坚忍族",
+      "content": "在废土中点燃圣火、结寨自保的普通幸存者，依靠强悍的狩猎队外出搜寻物资与旧世遗物维生。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "shadow-faction-cerulean-faction",
+      "type": "Hook",
+      "title": "塞尔西恩派",
+      "content": "驻守琥珀港学府要塞的博识之民，试图保护失落的古代知识与以太织法，抵抗死灵冲击。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "shadow-faction-brocade-queen-gang",
+      "type": "Hook",
+      "title": "锦缎女王的匪帮",
+      "content": "占据琥珀港辰砂区的地痞、无赖与暴徒，奉行“今朝有酒今朝醉”，靠暴力在废墟中自立为王。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "shadow-faction-zealots-of-atonement",
+      "type": "Hook",
+      "title": "赎罪狂信者",
+      "content": "坚信神王背叛是灾祸之源的极端宗教分子，狂热地试图与离位的众神建立联系以求宽恕。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "shadow-faction-secret-society",
+      "type": "Hook",
+      "title": "隐秘结社",
+      "content": "暗中行动的学者与探险家，认为救赎的关键藏在神王奥瑟迪亚斯的禁忌历史与典籍中。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "shadow-hook-light-vs-darkness",
+      "type": "Hook",
+      "title": "绝对黑暗 vs 微弱光明",
+      "content": "聚落对“受祝薪柴”有着病态的渴求，圣火的日常维系与荒野外无尽的“伏行之暗”形成不可调和的生存死局。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "shadow-hook-civilization-vs-wasteland",
+      "type": "Hook",
+      "title": "文明复辟 vs 废土丛林法则",
+      "content": "在琥珀港的废墟巷战中，试图复兴旧世界道德与知识的“学府派”，正面临狂热且只在乎眼前利益的“锦缎女王匪帮”的残酷蚕食。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "shadow-hook-knowledge-vs-superstition",
+      "type": "Hook",
+      "title": "知识救赎 vs 群体迷信",
+      "content": "唯一的超凡力量“以太织法”是应对暗影的利器，但施法者却面临被社群视为“灾祸根源”而遭到私刑迫害的风险。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "shadow-hook-waiting-death-vs-leaving-death",
+      "type": "Hook",
+      "title": "守城等死 vs 出城送命",
+      "content": "坚忍族必须外出搜刮补给，但野外随时有将人同化的瞬态风暴与梦魇邪异，外出的狩猎队常常面临“牺牲少数以换取大部队存活”的残酷道德抉择。",
+      "style": "#2563eb"
+    },
+    {
+      "id": "umbra-hook-rescue-at-shaka-abyss",
+      "type": "Hook",
+      "title": "诡音深渊的搜救",
+      "content": "??????????????????????????????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "umbra-hook-missing-tomb-warden",
+      "type": "Hook",
+      "title": "寻觅失联的守墓人",
+      "content": "????????????????????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "umbra-hook-blessed-kindling-of-hope",
+      "type": "Hook",
+      "title": "重燃希望的受祝薪柴",
+      "content": "??????????????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "umbra-hook-redemption-to-cleanse-the-world",
+      "type": "Hook",
+      "title": "净世的救赎之法",
+      "content": "?????????????????????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "umbra-hook-amber-haven-ruin-war",
+      "type": "Hook",
+      "title": "琥珀港的废墟争夺战",
+      "content": "??????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "umbra-hook-nightmare-at-your-back",
+      "type": "Hook",
+      "title": "背后的无尽梦魇",
+      "content": "?????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "umbra-hook-plunder-echoes-of-the-old-world",
+      "type": "Hook",
+      "title": "掠夺旧世的残响",
+      "content": "????????????????????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "supplement-umbra-hook-thief-of-brocade",
+      "type": "Hook",
+      "title": "窃取锦缎的女贼",
+      "content": "??????????????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "supplement-umbra-hook-mutating-outcast",
+      "type": "Hook",
+      "title": "异化边缘的流亡者",
+      "content": "?????????????????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "supplement-umbra-hook-blasphemous-aether-scholar",
+      "type": "Hook",
+      "title": "渎神的以太学者",
+      "content": "?????????????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "supplement-umbra-hook-false-oracle-with-kindling",
+      "type": "Hook",
+      "title": "背负神谕的骗子",
+      "content": "????????????????????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    },
+    {
+      "id": "supplement-umbra-hook-nightmare-hunter-of-the-marsh",
+      "type": "Hook",
+      "title": "猎杀梦魇的泥沼独行者",
+      "content": "??????????????????????????????????????????????????????????????????????????????",
+      "style": "#2563eb"
+    }
+  ]
 }
