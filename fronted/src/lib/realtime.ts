@@ -7,6 +7,11 @@ const MAX_RECONNECT_ATTEMPTS = 15
 
 export type ConnectionState = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
+interface ApiErrorPayload {
+  error?: string
+  message?: string
+}
+
 export function getRealtimeApiBase() {
   const configured = import.meta.env.VITE_REALTIME_API_BASE
   if (configured !== undefined) return configured.replace(/\/$/, '')
@@ -29,7 +34,13 @@ export async function joinRoomRequest(payload: JoinRoomRequest) {
 }
 
 export async function fetchDhRoomBackup(inviteCode: string) {
-  const response = await fetch(`${getRealtimeApiBase()}/api/rooms/${inviteCode}/export/dhroom`)
+  let response: Response
+  try {
+    response = await fetch(`${getRealtimeApiBase()}/api/rooms/${inviteCode}/export/dhroom`)
+  } catch {
+    throw new Error('无法连接到服务器，请检查网络或稍后重试。')
+  }
+
   if (!response.ok) {
     throw new Error(await readErrorMessage(response))
   }
@@ -73,7 +84,7 @@ export class RoomSocketConnection {
     try {
       this.socket = new WebSocket(this.websocketUrl)
     } catch {
-      this.handlers.onError?.(new Error('Failed to create WebSocket'))
+      this.handlers.onError?.(new Error('无法建立实时连接，请检查网络后重试。'))
       this.scheduleReconnect()
       return
     }
@@ -92,9 +103,15 @@ export class RoomSocketConnection {
       this.socket = null
 
       if (!wasIntentional) {
-        // If close happens immediately (auth failure etc), count it
+        if (event.code === 1001 && event.reason === 'Room expired') {
+          this.handlers.onError?.(new Error('房间已过期并自动删除，请重新创建房间或从备份恢复。'))
+          this.handlers.onStatusChange?.('error')
+          this.handlers.onClose?.()
+          return
+        }
+
         if (event.code === 1006) {
-          this.handlers.onError?.(new Error('连接被服务端关闭，可能是认证失败'))
+          this.handlers.onError?.(new Error('实时连接中断，可能是网络波动、会话失效或房间已过期。'))
         }
         this.scheduleReconnect()
       } else {
@@ -173,6 +190,7 @@ export class RoomSocketConnection {
   private scheduleReconnect(): void {
     if (this.disposed || this.intentionalClose) return
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      this.handlers.onError?.(new Error('与房间的连接恢复失败，请检查网络后手动重连。'))
       this.handlers.onStatusChange?.('error')
       return
     }
@@ -234,13 +252,18 @@ export class RoomSocketConnection {
 }
 
 async function requestJson<T>(pathname: string, init?: RequestInit) {
-  const response = await fetch(`${getRealtimeApiBase()}${pathname}`, {
-    ...init,
-    headers: {
-      'content-type': 'application/json; charset=utf-8',
-      ...(init?.headers ?? {}),
-    },
-  })
+  let response: Response
+  try {
+    response = await fetch(`${getRealtimeApiBase()}${pathname}`, {
+      ...init,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        ...(init?.headers ?? {}),
+      },
+    })
+  } catch {
+    throw new Error('无法连接到服务器，请检查网络或稍后重试。')
+  }
 
   if (!response.ok) {
     throw new Error(await readErrorMessage(response))
@@ -251,9 +274,30 @@ async function requestJson<T>(pathname: string, init?: RequestInit) {
 
 async function readErrorMessage(response: Response) {
   try {
-    const payload = await response.json() as { error?: string; message?: string }
-    return payload.message ?? payload.error ?? `Request failed (${response.status})`
+    const payload = await response.json() as ApiErrorPayload
+    return mapApiErrorMessage(payload, response.status)
   } catch {
-    return `Request failed (${response.status})`
+    return `请求失败（${response.status}），请稍后重试。`
+  }
+}
+
+function mapApiErrorMessage(payload: ApiErrorPayload, status: number) {
+  switch (payload.error) {
+    case 'room_expired':
+      return '房间已过期并自动删除，请重新创建房间或从备份恢复。'
+    case 'room_not_found':
+      return '找不到对应房间，请检查邀请码是否正确。'
+    case 'invite_code_required':
+      return '请输入邀请码。'
+    case 'nickname_required':
+      return '请输入昵称。'
+    case 'nickname_in_use':
+      return payload.message ?? '该昵称已在房间中在线使用，请更换昵称或等待原会话断开。'
+    case 'not_found':
+      return '请求的服务不存在。'
+    case 'internal_error':
+      return payload.message ? `服务端处理失败：${payload.message}` : '服务端处理失败，请稍后重试。'
+    default:
+      return payload.message ?? payload.error ?? `请求失败（${status}），请稍后重试。`
   }
 }

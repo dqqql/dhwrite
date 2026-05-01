@@ -301,6 +301,8 @@ export const useStore = create<AppStore>((set, get) => {
     return new Promise<void>((resolve, reject) => {
       let settled = false
       let receivedSnapshot = false
+      let latestConnectionError: Error | null = null
+      let hasShownRuntimeDisconnectToast = false
 
       const finishResolve = () => {
         if (settled) return
@@ -320,17 +322,25 @@ export const useStore = create<AppStore>((set, get) => {
           // If snapshot was received, the disconnect is handled by reconnect logic
           // Connection class updates status via onStatusChange
           if (!receivedSnapshot) {
-            finishReject(new Error('WebSocket closed before room snapshot arrived'))
+            finishReject(latestConnectionError ?? new Error('连接房间失败，请重试。'))
           }
         },
         onError: (error) => {
           if (activeConnection !== connection) return
+          latestConnectionError = error
           if (!receivedSnapshot) {
             finishReject(error)
           }
         },
         onStatusChange: (status) => {
           if (activeConnection !== connection) return
+          if (status === 'connected') {
+            hasShownRuntimeDisconnectToast = false
+          }
+          if (status === 'error' && receivedSnapshot && !hasShownRuntimeDisconnectToast) {
+            hasShownRuntimeDisconnectToast = true
+            get().addToast(latestConnectionError?.message ?? '与房间的连接恢复失败，请检查网络后手动重连。', 'error')
+          }
           set({ connectionStatus: status })
         },
         onMessage: (message) => {
