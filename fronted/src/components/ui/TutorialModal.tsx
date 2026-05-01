@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react'
+import ReactDOM from 'react-dom'
 import { X, ChevronLeft, ChevronRight, BookOpen, Users, Map, Link2, StickyNote, Download, Layers, Swords } from 'lucide-react'
 
 interface TutorialSlide {
@@ -128,7 +129,7 @@ export function TutorialModal({ onClose }: TutorialModalProps) {
     [prev, next, onClose],
   )
 
-  return (
+  return ReactDOM.createPortal(
     <div
       className="modal-overlay"
       onClick={onClose}
@@ -415,6 +416,7 @@ export function TutorialModal({ onClose }: TutorialModalProps) {
           to   { opacity: 1; transform: none; }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body,
   )
 }
