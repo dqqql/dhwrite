@@ -187,7 +187,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
                 }}
               >
                 <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                <span>创建房间后默认启用全部内置卡包。房间仅临时保留 3 天，到期会自动删除，请记得及时导出备份。</span>
+                <span>创建房间后默认启用全部内置卡包。房间适合临时共创，最多保留 3 天，到期会自动删除；建议每次完成后立即导出房间备份。</span>
               </div>
 
               <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={isEnteringRoom}>

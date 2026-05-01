@@ -89,7 +89,7 @@ export function RoomSettingsModal() {
           <Clock size={13} color={daysLeft < 1 ? 'var(--accent-rose)' : 'var(--accent-amber)'} />
           <span style={{ fontSize: 12, color: daysLeft < 1 ? 'var(--accent-rose)' : 'var(--accent-amber)' }}>
             房间将在 {daysLeft > 0 ? `${daysLeft} 天 ` : ''}{hoursLeft} 小时后自动删除。
-            {daysLeft < 1 ? ' 请尽快导出备份。' : ''}
+            {daysLeft < 1 ? ' 请尽快导出备份。' : ' 建议在本次共创结束后导出备份。'}
           </span>
         </div>
       </div>

@@ -179,20 +179,49 @@ export class RoomDurableObject {
   constructor(private readonly ctx: DurableObjectState, private readonly env: Env) {}
 
   async fetch(request: Request): Promise<Response> {
-    const url = new URL(request.url)
+    try {
+      const url = new URL(request.url)
 
-    if (url.pathname === '/internal/create' && request.method === 'POST') return this.create(request)
-    if (url.pathname === '/internal/join' && request.method === 'POST') return this.join(request)
-    if (url.pathname === '/internal/export/dhroom' && request.method === 'GET') return this.exportDhRoom()
+      if (url.pathname === '/internal/create' && request.method === 'POST') return this.create(request)
+      if (url.pathname === '/internal/join' && request.method === 'POST') return this.join(request)
+      if (url.pathname === '/internal/export/dhroom' && request.method === 'GET') return this.exportDhRoom()
 
-    if (request.headers.get('Upgrade') === 'websocket') return this.connectWebSocket(request)
+      if (request.headers.get('Upgrade') === 'websocket') return this.connectWebSocket(request)
 
-    return json({ error: 'not_found' }, { status: 404 })
+      return json({ error: 'not_found' }, { status: 404 })
+    } catch (error) {
+      if (error instanceof HttpError) {
+        return json({ error: error.message }, { status: error.status })
+      }
+
+      return json({ error: 'internal_error', message: messageFrom(error) }, { status: 500 })
+    }
+  }
+
+  async alarm(): Promise<void> {
+    const room = await this.load()
+    if (!room) {
+      await this.ctx.storage.deleteAlarm()
+      return
+    }
+
+    if (this.isExpired(room)) {
+      await this.purgeRoom('expired')
+      return
+    }
+
+    await this.scheduleExpiryAlarm(room)
   }
 
   private async create(request: Request): Promise<Response> {
     await this.load()
-    if (this.room) return json({ error: 'room_exists' }, { status: 409 })
+    if (this.room) {
+      if (this.isExpired(this.room)) {
+        await this.purgeRoom('expired')
+      } else {
+        return json({ error: 'room_exists' }, { status: 409 })
+      }
+    }
 
     const body = await request.json() as {
       roomName: string
@@ -234,6 +263,7 @@ export class RoomDurableObject {
     }
 
     await this.save()
+    await this.scheduleExpiryAlarm(this.room)
     return json({ state: this.publicState(), player: host })
   }
 
@@ -245,8 +275,22 @@ export class RoomDurableObject {
 
     const body = await request.json() as { nickname: string; playerId: string }
     const now = new Date()
+    const nickname = cleanText(body.nickname, 'Player', 24)
+    const onlineDuplicate = room.players.find((item) => item.nickname === nickname && item.is_online)
+    if (onlineDuplicate) {
+      return json({ error: 'nickname_in_use', message: '该昵称已在房间中在线使用，请更换昵称或等待原会话断开。' }, { status: 409 })
+    }
+
+    const rejoinCandidate = this.findOfflinePlayerByNickname(nickname)
+    if (rejoinCandidate) {
+      rejoinCandidate.is_online = true
+      rejoinCandidate.last_seen_at = now.toISOString()
+      await this.commit('player.rejoined')
+      return json({ state: this.publicState(), player: rejoinCandidate })
+    }
+
     const color = PLAYER_COLORS[room.players.length % PLAYER_COLORS.length]
-    const player = makePlayer(body.playerId, cleanText(body.nickname, 'Player', 24), color, false, now)
+    const player = makePlayer(body.playerId, nickname, color, false, now)
 
     room.players.push(player)
     room.turn_order.push(player.id)
@@ -1032,12 +1076,19 @@ export class RoomDurableObject {
     if (this.room) return this.room
     const storedRoom = await this.ctx.storage.get<RoomState>('room') ?? null
     this.room = storedRoom ? this.migrateRoomState(storedRoom) : null
+    if (this.room && !this.isExpired(this.room)) {
+      await this.scheduleExpiryAlarm(this.room)
+    }
     return this.room
   }
 
   private async mustLoad(): Promise<RoomState> {
     const room = await this.load()
     if (!room) throw new HttpError(404, 'room_not_found')
+    if (this.isExpired(room)) {
+      await this.purgeRoom('expired')
+      throw new HttpError(410, 'room_expired')
+    }
     return room
   }
 
@@ -1048,6 +1099,36 @@ export class RoomDurableObject {
 
   private publicState(): RoomState {
     return structuredClone(this.requireRoom())
+  }
+
+  private isExpired(room: Pick<RoomState, 'expires_at'>): boolean {
+    return Date.parse(room.expires_at) <= Date.now()
+  }
+
+  private async scheduleExpiryAlarm(room: Pick<RoomState, 'expires_at'>): Promise<void> {
+    const expiresAt = Date.parse(room.expires_at)
+    if (!Number.isFinite(expiresAt)) return
+
+    const currentAlarm = await this.ctx.storage.getAlarm()
+    if (currentAlarm !== expiresAt) {
+      await this.ctx.storage.setAlarm(expiresAt)
+    }
+  }
+
+  private async purgeRoom(reason: 'expired'): Promise<void> {
+    for (const socket of Array.from(this.sockets.keys())) {
+      try {
+        socket.close(1001, reason === 'expired' ? 'Room expired' : 'Room closed')
+      } catch {
+        // Ignore close errors while tearing down the room.
+      }
+    }
+
+    this.sockets.clear()
+    this.pendingDraws.clear()
+    this.room = null
+    await this.ctx.storage.deleteAlarm()
+    await this.ctx.storage.deleteAll()
   }
 
   private requireRoom(): RoomState {
@@ -1101,6 +1182,18 @@ export class RoomDurableObject {
     const player = this.requireRoom().players.find(item => item.id === playerId)
     if (!player) throw new Error('Unknown player')
     return player
+  }
+
+  private findOfflinePlayerByNickname(nickname: string): Player | null {
+    const matches = this.requireRoom().players
+      .filter((player) => player.nickname === nickname && !player.is_online)
+      .sort((left, right) => {
+        const leftSeen = Date.parse(left.last_seen_at || left.joined_at)
+        const rightSeen = Date.parse(right.last_seen_at || right.joined_at)
+        return rightSeen - leftSeen
+      })
+
+    return matches[0] ?? null
   }
 
   private requireMapCard(cardId: string): MapCard {
