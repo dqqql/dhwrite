@@ -279,7 +279,7 @@ export function TutorialModal({ onClose }: TutorialModalProps) {
         </div>
 
         {/* Content */}
-        <div style={{ padding: '22px 28px 20px' }}>
+        <div style={{ padding: '22px 28px 20px', minHeight: 320 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {slide.points.map((point, i) => (
               <div
