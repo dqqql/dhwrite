@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link2, Type, X } from 'lucide-react'
+import { Link2, LocateFixed, MousePointer2, Type, X, ZoomIn, ZoomOut } from 'lucide-react'
 import { nanoid } from 'nanoid'
 import { useStore } from '@/store/useStore'
 import { DhCardNode } from './CardNode'
@@ -126,6 +126,7 @@ export function MapCanvas() {
     recycleAnimation,
     clearRecycleAnimation,
     connectionDraftFromCardId,
+    draggingHandCard,
     cancelConnection,
     openConnectionEditor,
   } = useStore()
@@ -133,6 +134,13 @@ export function MapCanvas() {
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 })
   const [pointerWorld, setPointerWorld] = useState<{ x: number; y: number } | null>(null)
   const [isAnnotationPlacementActive, setIsAnnotationPlacementActive] = useState(false)
+  const [dropPreview, setDropPreview] = useState<{
+    x: number
+    y: number
+    width: number
+    height: number
+    card: DhCard
+  } | null>(null)
   const [selectedAnnotationId, setSelectedAnnotationId] = useState<string | null>(null)
   const [editingAnnotationId, setEditingAnnotationId] = useState<string | null>(null)
   const isPanning = useRef(false)
@@ -156,6 +164,55 @@ export function MapCanvas() {
       setPointerWorld(worldPoint)
     }
   }, [toWorldPoint])
+
+  const setAnnotationPlacement = useCallback((active: boolean) => {
+    setIsAnnotationPlacementActive(active)
+    if (active) {
+      setSelectedAnnotationId(null)
+      setEditingAnnotationId(null)
+    }
+  }, [])
+
+  const zoomCanvas = useCallback((factor: number) => {
+    const container = containerRef.current
+    if (!container) return
+
+    const rect = container.getBoundingClientRect()
+    const cx = rect.width / 2
+    const cy = rect.height / 2
+
+    setTransform((value) => {
+      const newScale = Math.min(3, Math.max(0.2, value.scale * factor))
+      return {
+        scale: newScale,
+        x: cx - (cx - value.x) * (newScale / value.scale),
+        y: cy - (cy - value.y) * (newScale / value.scale),
+      }
+    })
+  }, [])
+
+  const resetCanvasView = useCallback(() => {
+    setTransform({ x: 0, y: 0, scale: 1 })
+  }, [])
+
+  const updateDropPreview = useCallback((clientX: number, clientY: number, dragCardType?: CardType) => {
+    if (!containerRef.current || !draggingHandCard) return
+
+    const rect = containerRef.current.getBoundingClientRect()
+    const pointerWorldX = (clientX - rect.left - transform.x) / transform.scale
+    const pointerWorldY = (clientY - rect.top - transform.y) / transform.scale
+    const cardSize = getCardGridSize(dragCardType || draggingHandCard.card.type)
+    const nextX = snapToGrid(pointerWorldX - cardSize.width / 2)
+    const nextY = snapToGrid(pointerWorldY - cardSize.height / 2)
+
+    setDropPreview({
+      x: nextX,
+      y: nextY,
+      width: cardSize.width,
+      height: cardSize.height,
+      card: draggingHandCard.card,
+    })
+  }, [draggingHandCard, transform])
 
   const onMouseDown = useCallback((event: React.MouseEvent) => {
     if (event.button !== 1 && event.button !== 0) return
@@ -204,6 +261,12 @@ export function MapCanvas() {
   }, [editingAnnotationId, room, selectedAnnotationId])
 
   useEffect(() => {
+    if (!draggingHandCard) {
+      setDropPreview(null)
+    }
+  }, [draggingHandCard])
+
+  useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
@@ -233,8 +296,10 @@ export function MapCanvas() {
     if (event.dataTransfer.types.includes('application/dh-card-id')) {
       event.preventDefault()
       event.dataTransfer.dropEffect = 'move'
+      const dragCardType = event.dataTransfer.getData('application/dh-card-type') as CardType
+      updateDropPreview(event.clientX, event.clientY, dragCardType)
     }
-  }, [])
+  }, [updateDropPreview])
 
   const currentPlayerColor = room?.players.find((player) => player.id === currentPlayerId)?.color
 
@@ -246,23 +311,24 @@ export function MapCanvas() {
     event.preventDefault()
 
     const rect = containerRef.current.getBoundingClientRect()
-    const pointerWorldX = (event.clientX - rect.left - transform.x) / transform.scale
-    const pointerWorldY = (event.clientY - rect.top - transform.y) / transform.scale
-    const cardSize = getCardGridSize(cardType || 'Hook')
-    const worldX = pointerWorldX - cardSize.width / 2
-    const worldY = pointerWorldY - cardSize.height / 2
-    const snappedWorldX = snapToGrid(worldX)
-    const snappedWorldY = snapToGrid(worldY)
+    const fallbackCardSize = getCardGridSize(cardType || 'Hook')
+    const fallbackWorldX = snapToGrid(((event.clientX - rect.left - transform.x) / transform.scale) - fallbackCardSize.width / 2)
+    const fallbackWorldY = snapToGrid(((event.clientY - rect.top - transform.y) / transform.scale) - fallbackCardSize.height / 2)
+    const targetX = dropPreview?.x ?? fallbackWorldX
+    const targetY = dropPreview?.y ?? fallbackWorldY
+    const targetWidth = dropPreview?.width ?? fallbackCardSize.width
+    const targetHeight = dropPreview?.height ?? fallbackCardSize.height
 
     triggerPlacementAnimation(cardId, {
-      left: rect.left + transform.x + snappedWorldX * transform.scale,
-      top: rect.top + transform.y + snappedWorldY * transform.scale,
-      width: cardSize.width * transform.scale,
-      height: cardSize.height * transform.scale,
+      left: rect.left + transform.x + targetX * transform.scale,
+      top: rect.top + transform.y + targetY * transform.scale,
+      width: targetWidth * transform.scale,
+      height: targetHeight * transform.scale,
     }, currentPlayerColor)
 
-    playCard(cardId, snappedWorldX, snappedWorldY)
-  }, [currentPlayerColor, playCard, transform, triggerPlacementAnimation])
+    setDropPreview(null)
+    playCard(cardId, targetX, targetY)
+  }, [currentPlayerColor, dropPreview, playCard, transform, triggerPlacementAnimation])
 
   const bgPos = `${transform.x % (GRID_SIZE * transform.scale)}px ${transform.y % (GRID_SIZE * transform.scale)}px`
   const bgSize = `${GRID_SIZE * transform.scale}px ${GRID_SIZE * transform.scale}px`
@@ -282,10 +348,10 @@ export function MapCanvas() {
 
     if (!created) return
 
-    setIsAnnotationPlacementActive(false)
+    setAnnotationPlacement(false)
     setSelectedAnnotationId(annotationId)
     setEditingAnnotationId(annotationId)
-  }, [addAnnotation, toWorldPoint])
+  }, [addAnnotation, setAnnotationPlacement, toWorldPoint])
 
   const connectionDraftSource = useMemo(() => {
     if (!room || !connectionDraftFromCardId) return null
@@ -312,6 +378,8 @@ export function MapCanvas() {
     })
   }, [room])
 
+  const dropPreviewConfig = dropPreview ? getCardVisualConfig(dropPreview.card.type, dropPreview.card.style) : null
+
   return (
     <div
       ref={containerRef}
@@ -332,6 +400,12 @@ export function MapCanvas() {
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
       onDragOver={onDragOver}
+      onDragLeave={(event) => {
+        const nextTarget = event.relatedTarget as Node | null
+        if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+          setDropPreview(null)
+        }
+      }}
       onDrop={onDrop}
       onContextMenu={(event) => {
         event.preventDefault()
@@ -368,6 +442,23 @@ export function MapCanvas() {
         }
       }}
     >
+      {draggingHandCard && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 12,
+            border: dropPreview ? '1px solid rgba(37,99,235,0.26)' : '1px dashed rgba(37,99,235,0.22)',
+            background: dropPreview
+              ? 'linear-gradient(180deg, rgba(37,99,235,0.04), rgba(37,99,235,0.01))'
+              : 'transparent',
+            boxShadow: dropPreview ? 'inset 0 0 0 2px rgba(37,99,235,0.08)' : 'none',
+            pointerEvents: 'none',
+            zIndex: 5,
+            transition: 'all 120ms ease',
+          }}
+        />
+      )}
+
       <div
         data-canvas="true"
         style={{
@@ -378,6 +469,72 @@ export function MapCanvas() {
           height: 3000,
         }}
       >
+        {dropPreview && dropPreviewConfig && (
+          <div
+            style={{
+              position: 'absolute',
+              left: dropPreview.x,
+              top: dropPreview.y,
+              width: dropPreview.width,
+              height: dropPreview.height,
+              border: `2px dashed ${dropPreviewConfig.color}`,
+              background: `linear-gradient(180deg, ${dropPreviewConfig.bg}, rgba(255,255,255,0.84))`,
+              boxShadow: `0 12px 28px rgba(15,23,42,0.14), 0 0 0 1px ${dropPreviewConfig.border}`,
+              opacity: 0.78,
+              pointerEvents: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                padding: '8px 10px',
+                borderBottom: `1px solid ${dropPreviewConfig.border}`,
+                color: dropPreviewConfig.color,
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+              }}
+            >
+              <dropPreviewConfig.Icon size={12} />
+              <span>{dropPreviewConfig.label}</span>
+            </div>
+            <div
+              style={{
+                padding: '0 12px 14px',
+                textAlign: 'center',
+                color: 'var(--text-primary)',
+                fontSize: 18,
+                fontWeight: 700,
+                lineHeight: 1.2,
+              }}
+            >
+              {dropPreview.card.title}
+            </div>
+            <div
+              style={{
+                position: 'absolute',
+                right: 10,
+                bottom: 10,
+                fontSize: 10,
+                fontWeight: 700,
+                color: 'var(--accent-violet)',
+                background: 'rgba(255,255,255,0.92)',
+                border: '1px solid rgba(37,99,235,0.18)',
+                padding: '3px 8px',
+              }}
+            >
+              在此落牌
+            </div>
+          </div>
+        )}
+
         {room?.annotations.map((annotation) => (
           <AnnotationNode
             key={annotation.id}
@@ -570,7 +727,7 @@ export function MapCanvas() {
               正在从“{connectionDraftSource.title}”发起连线
             </div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-              点击另一张卡牌选择目标，再设置关系类型和标签
+              点击另一张卡牌选择目标，再设置关系类型和标签。
             </div>
           </div>
           <button className="btn btn-ghost btn-icon" onClick={cancelConnection} title="取消连线">
@@ -584,8 +741,8 @@ export function MapCanvas() {
           className="glass-panel-sm"
           style={{
             position: 'absolute',
-            top: connectionDraftSource ? 78 : 14,
             left: 14,
+            bottom: 116,
             zIndex: 250,
             display: 'flex',
             alignItems: 'center',
@@ -615,45 +772,50 @@ export function MapCanvas() {
               放下后会直接进入编辑，空内容会自动删除。
             </div>
           </div>
-          <button className="btn btn-ghost btn-icon" onClick={() => setIsAnnotationPlacementActive(false)} title="取消放置标注">
+          <button className="btn btn-ghost btn-icon" onClick={() => setAnnotationPlacement(false)} title="取消放置标注">
             <X size={14} />
           </button>
         </div>
       )}
 
-      <div style={{ position: 'absolute', top: 14, right: 14, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 250 }}>
-        <button
-          title={isAnnotationPlacementActive ? '取消标注放置' : '添加文字标注'}
-          className={`btn ${isAnnotationPlacementActive ? 'btn-primary' : 'btn-secondary'}`}
-          style={{
-            background: isAnnotationPlacementActive ? 'var(--accent-violet)' : 'var(--bg-elevated)',
-            color: isAnnotationPlacementActive ? 'white' : 'var(--text-primary)',
-          }}
-          onClick={() => {
-            setIsAnnotationPlacementActive((value) => !value)
-            setSelectedAnnotationId(null)
-            setEditingAnnotationId(null)
-          }}
-        >
-          <Type size={14} /> {isAnnotationPlacementActive ? '取消标注' : '添加标注'}
-        </button>
-      </div>
-
       <div
+        className="glass-panel-sm"
         style={{
           position: 'absolute',
-          bottom: 20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'var(--bg-elevated)',
-          padding: '3px 10px',
-          borderRadius: 2,
-          fontSize: 11,
-          color: 'var(--text-muted)',
-          border: '1px solid var(--border-subtle)',
+          left: 14,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          zIndex: 250,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          padding: '8px',
         }}
       >
-        {Math.round(transform.scale * 100)}% · 中键拖拽平移 · 滚轮缩放
+        <button
+          title="浏览和选择画布内容"
+          className={`btn btn-icon ${!isAnnotationPlacementActive ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setAnnotationPlacement(false)}
+        >
+          <MousePointer2 size={15} />
+        </button>
+        <button
+          title={isAnnotationPlacementActive ? '取消标注放置' : '添加文字标注'}
+          className={`btn btn-icon ${isAnnotationPlacementActive ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setAnnotationPlacement(!isAnnotationPlacementActive)}
+        >
+          <Type size={15} />
+        </button>
+        <div style={{ width: '100%', height: 1, background: 'var(--border-subtle)', margin: '2px 0' }} />
+        <button className="btn btn-secondary btn-icon" onClick={() => zoomCanvas(0.9)} title="缩小">
+          <ZoomOut size={15} />
+        </button>
+        <button className="btn btn-secondary btn-icon" onClick={() => zoomCanvas(1.1)} title="放大">
+          <ZoomIn size={15} />
+        </button>
+        <button className="btn btn-secondary btn-icon" onClick={resetCanvasView} title="重置视图">
+          <LocateFixed size={15} />
+        </button>
       </div>
 
       <CardContextMenu />

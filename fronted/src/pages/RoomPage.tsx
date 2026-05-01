@@ -23,23 +23,32 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
   const { room, connectionStatus, manualReconnect, currentPlayerId, drawCards } = useStore()
   const [isTurnStartModalOpen, setIsTurnStartModalOpen] = useState(false)
   const previousTurnPlayerIdRef = useRef<string | null>(null)
+  const hasPromptedCurrentTurnRef = useRef(false)
 
   useEffect(() => {
     if (!room || room.mode !== 'co-creation') {
       previousTurnPlayerIdRef.current = room?.current_turn_player_id ?? null
+      hasPromptedCurrentTurnRef.current = false
       setIsTurnStartModalOpen(false)
       return
     }
 
     const currentTurnPlayerId = room.current_turn_player_id
     const previousTurnPlayerId = previousTurnPlayerIdRef.current
+    const isMyTurn = currentTurnPlayerId === currentPlayerId
+    const hasDrawnThisTurn = room.drawn_this_turn[currentPlayerId] ?? false
 
-    if (
-      previousTurnPlayerId !== null &&
-      previousTurnPlayerId !== currentTurnPlayerId &&
-      currentTurnPlayerId === currentPlayerId
-    ) {
+    if (previousTurnPlayerId !== currentTurnPlayerId) {
+      hasPromptedCurrentTurnRef.current = false
+    }
+
+    if (isMyTurn && !hasDrawnThisTurn && !hasPromptedCurrentTurnRef.current) {
       setIsTurnStartModalOpen(true)
+      hasPromptedCurrentTurnRef.current = true
+    }
+
+    if (!isMyTurn || hasDrawnThisTurn) {
+      setIsTurnStartModalOpen(false)
     }
 
     previousTurnPlayerIdRef.current = currentTurnPlayerId

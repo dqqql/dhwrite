@@ -10,7 +10,7 @@ interface TurnStartModalProps {
 
 export function TurnStartModal({ open, onClose, onDraw }: TurnStartModalProps) {
   return (
-    <Modal open={open} onClose={onClose} title="轮到你了" maxWidth={420}>
+    <Modal open={open} onClose={onClose} title="轮到你了，可以抽牌" maxWidth={420}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 18 }}>
         <div
           style={{
@@ -29,7 +29,7 @@ export function TurnStartModal({ open, onClose, onDraw }: TurnStartModalProps) {
         </div>
         <div>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
-            现在是你的回合
+            现在是你的回合，先抽一张牌吧
           </div>
           <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
             你可以点击下方手牌区里的“抽牌”按钮开始本回合操作，也可以直接在这里点“立即抽牌”。

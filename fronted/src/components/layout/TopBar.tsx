@@ -38,6 +38,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   } = useStore()
 
   if (!room) return null
+
   const currentRoom = room
 
   const isHost = currentRoom.host_player_id === currentPlayerId
@@ -166,7 +167,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
             color: 'white',
           }}
         >
-          匕
+          地
         </div>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>
@@ -281,43 +282,48 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
         </div>
       )}
 
-      {isHost && (
-        isCoCreation ? (
-          <button className="btn btn-danger btn-sm" onClick={openEndConfirm}>
-            <StopCircle size={13} /> 结束共创
-          </button>
-        ) : (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {!isCoCreation && isHost && (
           <button className="btn btn-primary btn-sm" onClick={startCoCreation}>
             <Play size={13} /> 开始共创
           </button>
-        )
-      )}
-
-      <button className="btn btn-secondary btn-sm" onClick={openCardLibrary}>
-        <BookOpen size={13} /> 卡包库
-      </button>
-
-      {isHost && (
-        <button className="btn btn-secondary btn-sm" onClick={openImportModal}>
-          <Upload size={13} /> 导入
-        </button>
-      )}
-
-      <div style={{ position: 'relative' }}>
-        <button className="btn btn-secondary btn-sm" onClick={toggleExportMenu}>
-          <Download size={13} /> 导出 <ChevronDown size={11} />
-        </button>
-        {isExportMenuOpen && (
-          <div className="context-menu" style={{ top: '100%', right: 0, left: 'auto', marginTop: 4, minWidth: 220 }}>
-            <div className="context-menu__item" onClick={exportDhRoom}>
-              <FileJson size={13} /> 房间备份 (.dhroom.json)
-            </div>
-            <div className="context-menu__item" onClick={exportMarkdown}>
-              <FileText size={13} /> 叙事摘要 (.md)
-            </div>
-          </div>
         )}
+
+        <button className="btn btn-secondary btn-sm" onClick={openCardLibrary}>
+          <BookOpen size={13} /> 卡包库
+        </button>
+
+        {isHost && (
+          <button className="btn btn-secondary btn-sm" onClick={openImportModal}>
+            <Upload size={13} /> 导入
+          </button>
+        )}
+
+        <div style={{ position: 'relative' }}>
+          <button className="btn btn-secondary btn-sm" onClick={toggleExportMenu}>
+            <Download size={13} /> 导出 <ChevronDown size={11} />
+          </button>
+          {isExportMenuOpen && (
+            <div className="context-menu" style={{ top: '100%', right: 0, left: 'auto', marginTop: 4, minWidth: 220 }}>
+              <div className="context-menu__item" onClick={exportDhRoom}>
+                <FileJson size={13} /> 房间备份 (.dhroom.json)
+              </div>
+              <div className="context-menu__item" onClick={exportMarkdown}>
+                <FileText size={13} /> 叙事摘要 (.md)
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {isHost && isCoCreation && (
+        <>
+          <div style={{ width: 1, height: 26, background: 'var(--border-default)', margin: '0 4px 0 8px' }} />
+          <button className="btn btn-danger btn-sm" onClick={openEndConfirm} style={{ boxShadow: '0 0 0 1px rgba(244,63,94,0.08)' }}>
+            <StopCircle size={13} /> 结束共创
+          </button>
+        </>
+      )}
 
       <button className="btn btn-ghost btn-icon" onClick={openRoomSettings} title="房间设置">
         <Settings size={15} />
