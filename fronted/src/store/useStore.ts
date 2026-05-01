@@ -5,6 +5,7 @@ import {
   assertDhRoomBackup,
   type ClientMessage,
   type DhCard,
+  type MapCard,
   type RoomSession,
   type RoomState,
 } from '@dhgc/shared'
@@ -42,6 +43,9 @@ interface RecycleAnimation {
   toRect: ScreenRect
   playerColor?: string
 }
+
+type LocalMapCardOverride = Partial<Pick<MapCard, 'x' | 'y' | 'width' | 'height' | 'grid_cols' | 'grid_rows' | 'grid_scale' | 'territory'>>
+type LocalAnnotationOverride = Partial<Pick<Annotation, 'text' | 'x' | 'y' | 'font_size'>>
 
 interface UIState {
   isPlayerPanelOpen: boolean
@@ -156,18 +160,103 @@ interface AppStore extends UIState {
 }
 
 let activeConnection: RoomSocketConnection | null = null
+const localMapCardOverrides = new Map<string, LocalMapCardOverride>()
+const localAnnotationOverrides = new Map<string, LocalAnnotationOverride>()
+
+function rectEquals(left?: Rect, right?: Rect) {
+  if (!left && !right) return true
+  if (!left || !right) return false
+  return left.x === right.x
+    && left.y === right.y
+    && left.width === right.width
+    && left.height === right.height
+}
+
+function doesMapCardMatchOverride(card: MapCard, override: LocalMapCardOverride) {
+  if (override.x !== undefined && card.x !== override.x) return false
+  if (override.y !== undefined && card.y !== override.y) return false
+  if (override.width !== undefined && card.width !== override.width) return false
+  if (override.height !== undefined && card.height !== override.height) return false
+  if (override.grid_cols !== undefined && card.grid_cols !== override.grid_cols) return false
+  if (override.grid_rows !== undefined && card.grid_rows !== override.grid_rows) return false
+  if (override.grid_scale !== undefined && card.grid_scale !== override.grid_scale) return false
+  if (override.territory !== undefined && !rectEquals(card.territory, override.territory)) return false
+  return true
+}
+
+function doesAnnotationMatchOverride(annotation: Annotation, override: LocalAnnotationOverride) {
+  if (override.text !== undefined && annotation.text !== override.text) return false
+  if (override.x !== undefined && annotation.x !== override.x) return false
+  if (override.y !== undefined && annotation.y !== override.y) return false
+  if (override.font_size !== undefined && annotation.font_size !== override.font_size) return false
+  return true
+}
+
+function setLocalMapCardOverride(cardId: string, override: LocalMapCardOverride) {
+  localMapCardOverrides.set(cardId, {
+    ...(localMapCardOverrides.get(cardId) ?? {}),
+    ...override,
+  })
+}
+
+function setLocalAnnotationOverride(annotationId: string, override: LocalAnnotationOverride) {
+  localAnnotationOverrides.set(annotationId, {
+    ...(localAnnotationOverrides.get(annotationId) ?? {}),
+    ...override,
+  })
+}
+
+function clearTransientOverrides() {
+  localMapCardOverrides.clear()
+  localAnnotationOverrides.clear()
+}
 
 function preserveTransientRoomState(previous: RoomState | null, incoming: RoomState): RoomState {
   if (!previous) return incoming
 
   const expandedById = new Map(previous.map_cards.map((card) => [card.id, card.is_expanded]))
+  const incomingCardIds = new Set(incoming.map_cards.map((card) => card.id))
+  const incomingAnnotationIds = new Set(incoming.annotations.map((annotation) => annotation.id))
+
+  for (const cardId of localMapCardOverrides.keys()) {
+    if (!incomingCardIds.has(cardId)) {
+      localMapCardOverrides.delete(cardId)
+    }
+  }
+
+  for (const annotationId of localAnnotationOverrides.keys()) {
+    if (!incomingAnnotationIds.has(annotationId)) {
+      localAnnotationOverrides.delete(annotationId)
+    }
+  }
 
   return {
     ...incoming,
     map_cards: incoming.map_cards.map((card) => ({
-      ...card,
-      is_expanded: expandedById.get(card.id) ?? card.is_expanded,
+      ...(() => {
+        const override = localMapCardOverrides.get(card.id)
+        if (override && doesMapCardMatchOverride(card, override)) {
+          localMapCardOverrides.delete(card.id)
+        }
+
+        return {
+          ...card,
+          ...(override && !doesMapCardMatchOverride(card, override) ? override : {}),
+          is_expanded: expandedById.get(card.id) ?? card.is_expanded,
+        }
+      })(),
     })),
+    annotations: incoming.annotations.map((annotation) => {
+      const override = localAnnotationOverrides.get(annotation.id)
+      if (override && doesAnnotationMatchOverride(annotation, override)) {
+        localAnnotationOverrides.delete(annotation.id)
+      }
+
+      return {
+        ...annotation,
+        ...(override && !doesAnnotationMatchOverride(annotation, override) ? override : {}),
+      }
+    }),
   }
 }
 
@@ -402,6 +491,7 @@ export const useStore = create<AppStore>((set, get) => {
         activeConnection.dispose()
         activeConnection = null
       }
+      clearTransientOverrides()
       set({
         room: null,
         session: null,
@@ -564,14 +654,15 @@ export const useStore = create<AppStore>((set, get) => {
     clearRecycleAnimation: () => set({ recycleAnimation: null }),
 
     moveCard: (cardId, x, y) => {
+      const nextX = snapToGrid(x)
+      const nextY = snapToGrid(y)
+      setLocalMapCardOverride(cardId, { x: nextX, y: nextY })
+
       set((state) => ({
         room: state.room ? {
           ...state.room,
           map_cards: state.room.map_cards.map((card) => {
             if (card.id !== cardId) return card
-
-            const nextX = snapToGrid(x)
-            const nextY = snapToGrid(y)
 
             return {
               ...card,
@@ -584,10 +675,14 @@ export const useStore = create<AppStore>((set, get) => {
     },
 
     commitMoveCard: (cardId, x, y) => {
-      sendMessage({
+      const sent = sendMessage({
         type: 'card.move.commit',
         payload: { cardId, x: snapToGrid(x), y: snapToGrid(y) },
       })
+
+      if (!sent) {
+        localMapCardOverrides.delete(cardId)
+      }
     },
 
     resizeCard: (cardId, width, height) => {
@@ -597,6 +692,7 @@ export const useStore = create<AppStore>((set, get) => {
           map_cards: state.room.map_cards.map((card) => {
             if (card.id !== cardId) return card
             const nextSize = normalizeCardDimensions(card.type, width, height)
+            setLocalMapCardOverride(cardId, nextSize)
             return {
               ...card,
               width: nextSize.width,
@@ -612,7 +708,7 @@ export const useStore = create<AppStore>((set, get) => {
 
     commitResizeCard: (cardId, width, height) => {
       const normalized = get().room?.map_cards.find((card) => card.id === cardId)
-      sendMessage({
+      const sent = sendMessage({
         type: 'card.resize.commit',
         payload: {
           cardId,
@@ -620,6 +716,10 @@ export const useStore = create<AppStore>((set, get) => {
           height: normalized?.height ?? height,
         },
       })
+
+      if (!sent) {
+        localMapCardOverrides.delete(cardId)
+      }
     },
 
     markCardTerritory: (cardId) => {
@@ -689,9 +789,11 @@ export const useStore = create<AppStore>((set, get) => {
           ...state.room,
           map_cards: state.room.map_cards.map((card) => {
             if (card.id !== cardId || card.type !== 'Location') return card
+            const nextTerritory = normalizeTerritoryRect(territory, card.width, card.height)
+            setLocalMapCardOverride(cardId, { territory: nextTerritory })
             return {
               ...card,
-              territory: normalizeTerritoryRect(territory, card.width, card.height),
+              territory: nextTerritory,
             }
           }),
         } : null,
@@ -702,7 +804,7 @@ export const useStore = create<AppStore>((set, get) => {
       const card = get().room?.map_cards.find((item) => item.id === cardId)
       if (!card || card.type !== 'Location') return
 
-      sendMessage({
+      const sent = sendMessage({
         type: 'card.edit',
         payload: {
           cardId,
@@ -711,6 +813,10 @@ export const useStore = create<AppStore>((set, get) => {
           },
         },
       })
+
+      if (!sent) {
+        localMapCardOverrides.delete(cardId)
+      }
     },
 
     toggleExpandCard: (cardId) => {
@@ -854,6 +960,7 @@ export const useStore = create<AppStore>((set, get) => {
     },
 
     updateAnnotationLocal: (annotationId, updates) => {
+      setLocalAnnotationOverride(annotationId, updates)
       set((state) => ({
         room: state.room ? {
           ...state.room,
@@ -865,13 +972,18 @@ export const useStore = create<AppStore>((set, get) => {
     },
 
     commitAnnotationUpdate: (annotationId, updates) => {
-      sendMessage({
+      const sent = sendMessage({
         type: 'annotation.update',
         payload: { annotationId, updates },
       })
+
+      if (!sent) {
+        localAnnotationOverrides.delete(annotationId)
+      }
     },
 
     removeAnnotation: (annId) => {
+      localAnnotationOverrides.delete(annId)
       const sent = sendMessage({
         type: 'annotation.remove',
         payload: { annotationId: annId },
