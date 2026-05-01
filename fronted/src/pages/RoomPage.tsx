@@ -23,11 +23,13 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
   const { room, connectionStatus, manualReconnect, currentPlayerId, drawCards } = useStore()
   const [isTurnStartModalOpen, setIsTurnStartModalOpen] = useState(false)
   const previousTurnPlayerIdRef = useRef<string | null>(null)
+  const previousHasDrawnThisTurnRef = useRef(false)
   const hasPromptedCurrentTurnRef = useRef(false)
 
   useEffect(() => {
     if (!room || room.mode !== 'co-creation') {
       previousTurnPlayerIdRef.current = room?.current_turn_player_id ?? null
+      previousHasDrawnThisTurnRef.current = false
       hasPromptedCurrentTurnRef.current = false
       setIsTurnStartModalOpen(false)
       return
@@ -42,6 +44,12 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
       hasPromptedCurrentTurnRef.current = false
     }
 
+    // In a single-player room, the turn can advance back to the same player id.
+    // Treat a drawn=true -> false reset as a fresh turn so the turn-start flow reopens.
+    if (previousHasDrawnThisTurnRef.current && !hasDrawnThisTurn) {
+      hasPromptedCurrentTurnRef.current = false
+    }
+
     if (isMyTurn && !hasDrawnThisTurn && !hasPromptedCurrentTurnRef.current) {
       setIsTurnStartModalOpen(true)
       hasPromptedCurrentTurnRef.current = true
@@ -52,6 +60,7 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
     }
 
     previousTurnPlayerIdRef.current = currentTurnPlayerId
+    previousHasDrawnThisTurnRef.current = hasDrawnThisTurn
   }, [room, currentPlayerId])
 
   if (!room) {

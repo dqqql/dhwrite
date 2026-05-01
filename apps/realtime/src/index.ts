@@ -353,7 +353,7 @@ export class RoomDurableObject {
 
       case 'card.draw':
         this.requireCurrentTurn(player)
-        if (room.drawn_this_turn[player.id]) throw new Error('Already drew this turn')
+        if (room.drawn_this_turn[player.id]) throw new Error('本回合已经抽过牌了')
         this.pendingDraws.set(player.id, this.buildDrawOptions())
         this.send(socket, {
           type: 'draw.options',

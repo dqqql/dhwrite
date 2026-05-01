@@ -278,7 +278,7 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
           width: card.width,
           height: card.height,
           borderColor: cfg.border,
-          boxShadow: `0 1px 2px rgba(15,23,42,0.12), 0 0 0 2px ${card.player_color}22`,
+          boxShadow: `0 1px 2px rgba(15,23,42,0.12)`,
           zIndex: 2,
         }}
         onMouseDown={onMouseDown}
@@ -295,7 +295,8 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
         <div
           className="dh-card__header"
           style={{
-            background: cfg.color,
+            background: `linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(0,0,0,0.05) 100%), ${cfg.color}`,
+            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.15)',
             borderBottomColor: cfg.border,
             color: cfg.textOnColor,
             paddingRight: 24,
