@@ -26,8 +26,14 @@ export function assertDhPack(value: unknown): DhPack {
   const pack = value as Partial<DhPack>
   if (pack.format !== 'dhpack') throw new Error('Pack format must be "dhpack"')
   if (pack.version !== 1) throw new Error('Pack version must be 1')
+  if (pack.id !== undefined && (typeof pack.id !== 'string' || !pack.id.trim())) {
+    throw new Error('Pack id must be a non-empty string when provided')
+  }
   if (typeof pack.pack_name !== 'string' || !pack.pack_name.trim()) {
     throw new Error('Pack name is required')
+  }
+  if (pack.description !== undefined && typeof pack.description !== 'string') {
+    throw new Error('Pack description must be a string when provided')
   }
   if (!Array.isArray(pack.cards)) throw new Error('Pack cards must be an array')
 
@@ -69,11 +75,20 @@ export function assertDhRoomBackup(value: unknown): DhRoomBackup {
   if (!Array.isArray(backup.map.annotations)) throw new Error('Room annotations must be an array')
 
   if (backup.library) {
-    assertRoomLibrary(backup.library.packs, backup.library.selected_pack_ids)
+    const importedPacks = Array.isArray(backup.library.imported_packs)
+      ? backup.library.imported_packs
+      : backup.library.packs
+    const selectedBuiltInPackIds = Array.isArray(backup.library.selected_built_in_pack_ids)
+      ? backup.library.selected_built_in_pack_ids
+      : backup.library.selected_pack_ids
+
+    assertRoomLibrary(importedPacks ?? [], selectedBuiltInPackIds ?? [])
+    backup.library.imported_packs = importedPacks ?? []
+    backup.library.selected_built_in_pack_ids = selectedBuiltInPackIds ?? []
   } else {
     ;(backup as { library?: unknown }).library = {
-      packs: [],
-      selected_pack_ids: [],
+      imported_packs: [],
+      selected_built_in_pack_ids: [],
     }
   }
 
@@ -101,6 +116,9 @@ export function safeJsonParse(value: string): unknown {
 function assertRoomLibrary(packs: unknown, selectedPackIds: unknown): asserts packs is RoomPackLibraryItem[] {
   if (!Array.isArray(packs)) throw new Error('Room library packs must be an array')
   if (!Array.isArray(selectedPackIds)) throw new Error('Room selected pack ids must be an array')
+  if (selectedPackIds.some((packId) => typeof packId !== 'string')) {
+    throw new Error('Room selected pack ids must be strings')
+  }
 
   for (const [index, pack] of packs.entries()) {
     if (!pack || typeof pack !== 'object') throw new Error(`Library pack ${index} must be an object`)
@@ -145,5 +163,5 @@ function normalizeBackupCardTypes(backup: Partial<DhRoomBackup>) {
   backup.session?.deck?.forEach(normalizeCard)
   backup.session?.hands?.forEach((hand) => hand.cards.forEach(normalizeCard))
   backup.map?.cards?.forEach(normalizeCard)
-  backup.library?.packs?.forEach((pack) => pack.cards.forEach(normalizeCard))
+  ;(backup.library?.imported_packs ?? backup.library?.packs ?? []).forEach((pack) => pack.cards.forEach(normalizeCard))
 }

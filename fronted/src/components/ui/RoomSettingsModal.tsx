@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { DEFAULT_BUILT_IN_PACK_IDS, isBuiltInPackId } from '@dhgc/shared'
+import { createBuiltInPackLibrary, DEFAULT_BUILT_IN_PACK_IDS } from '@dhgc/shared'
 import { useStore } from '@/store/useStore'
 import { Modal } from './Modal'
 import { Check, Clock, Copy, Trash2 } from 'lucide-react'
@@ -18,18 +18,18 @@ export function RoomSettingsModal() {
   } = useStore()
   const [copied, setCopied] = useState(false)
   const [selectedPackIds, setSelectedPackIds] = useState<string[]>(DEFAULT_BUILT_IN_PACK_IDS)
-  const selectedPackKey = room?.selected_pack_ids.join('|') ?? ''
+  const selectedPackKey = room?.selected_built_in_pack_ids.join('|') ?? ''
 
   useEffect(() => {
     if (!room || !isRoomSettingsOpen) return
 
-    const builtInSelection = room.selected_pack_ids.filter(isBuiltInPackId)
+    const builtInSelection = room.selected_built_in_pack_ids
     setSelectedPackIds(builtInSelection.length ? builtInSelection : DEFAULT_BUILT_IN_PACK_IDS)
   }, [isRoomSettingsOpen, room?.room_id, selectedPackKey])
 
   const builtInPacks = useMemo(() => (
-    room?.pack_library.filter((pack) => pack.source === 'built-in') ?? []
-  ), [room])
+    createBuiltInPackLibrary()
+  ), [])
 
   if (!room) return null
   const currentRoom = room
@@ -40,7 +40,7 @@ export function RoomSettingsModal() {
   const hoursLeft = Math.max(0, Math.floor((msLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)))
   const isHost = currentRoom.host_player_id === currentPlayerId
   const isCoCreation = currentRoom.mode === 'co-creation'
-  const importedPackCount = currentRoom.pack_library.filter((pack) => pack.source === 'imported').length
+  const importedPackCount = currentRoom.imported_pack_library.length
 
   function copyCode() {
     navigator.clipboard.writeText(currentRoom.invite_code).catch(() => {})

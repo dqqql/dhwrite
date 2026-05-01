@@ -41,6 +41,7 @@ export type ServerMessage =
 export interface CreateRoomRequest {
   room_name: string
   nickname: string
+  selected_built_in_pack_ids?: string[]
   selected_pack_ids?: string[]
 }
 

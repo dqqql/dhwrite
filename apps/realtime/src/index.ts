@@ -1,13 +1,15 @@
 import {
   assertDhPack,
   assertDhRoomBackup,
-  createBuiltInPackLibrary,
+  createPackLibrary,
   createDeckFromBuiltInPackIds,
+  createRoomPackLibraryItemFromPack,
   getCardGridSize,
   isBuiltInPackId,
   normalizeCardType,
   normalizeCardDimensions,
   normalizeBuiltInPackSelection,
+  normalizeImportedPackLibrary,
   normalizeTerritoryRect,
   safeJsonParse,
   snapToGrid,
@@ -94,7 +96,12 @@ export default {
 }
 
 async function createRoom(request: Request, env: Env): Promise<Response> {
-  const body = await request.json() as { room_name?: string; nickname?: string; selected_pack_ids?: string[] }
+  const body = await request.json() as {
+    room_name?: string
+    nickname?: string
+    selected_built_in_pack_ids?: string[]
+    selected_pack_ids?: string[]
+  }
   const roomName = cleanText(body.room_name, 'Untitled Room', 60)
   const nickname = cleanText(body.nickname, '', 24)
   if (!nickname) return json({ error: 'nickname_required' }, { status: 400 })
@@ -105,7 +112,13 @@ async function createRoom(request: Request, env: Env): Promise<Response> {
     const stub = roomStub(env, inviteCode)
     const createResponse = await stub.fetch(internalRequest('/internal/create', {
       method: 'POST',
-      body: JSON.stringify({ roomName, inviteCode, playerId, nickname, selectedPackIds: body.selected_pack_ids ?? [] }),
+      body: JSON.stringify({
+        roomName,
+        inviteCode,
+        playerId,
+        nickname,
+        selectedPackIds: body.selected_built_in_pack_ids ?? body.selected_pack_ids ?? [],
+      }),
     }))
 
     if (createResponse.status === 409) continue
@@ -210,11 +223,11 @@ export class RoomDurableObject {
       map_cards: [],
       connections: [],
       annotations: [],
-      pack_library: createBuiltInPackLibrary(),
+      imported_pack_library: [],
       settings: {
         imports_enabled: true,
       },
-      selected_pack_ids: selectedPackIds,
+      selected_built_in_pack_ids: selectedPackIds,
       drawn_this_turn: {},
       snapshot_version: 0,
       updated_at: now.toISOString(),
@@ -628,24 +641,10 @@ export class RoomDurableObject {
   private importPack(pack: DhPack): void {
     const room = this.requireRoom()
     const packId = id('pack')
-    const libraryPack: RoomPackLibraryItem = {
-      id: packId,
-      pack_name: pack.pack_name,
-      source: 'imported',
-      cards: pack.cards.map((card, index) => ({
-        id: card.id ?? `${packId}:card:${index}`,
-        type: card.type,
-        title: card.title,
-        content: card.content,
-        style: card.style,
-      })),
-    }
+    const libraryPack = createRoomPackLibraryItemFromPack(pack, { id: packId, source: 'imported' })
     const cards = this.instantiatePackCards(libraryPack)
 
-    room.pack_library.push(libraryPack)
-    if (!room.selected_pack_ids.includes(packId)) {
-      room.selected_pack_ids.push(packId)
-    }
+    room.imported_pack_library.push(libraryPack)
     room.deck = shuffle([...room.deck, ...cards])
   }
 
@@ -693,12 +692,14 @@ export class RoomDurableObject {
       }
     }
 
-    const importedLibrary = backup.library?.packs?.length
-      ? structuredClone(backup.library.packs)
-      : createBuiltInPackLibrary()
-    const importedSelectedPackIds = backup.library?.selected_pack_ids?.length
-      ? [...backup.library.selected_pack_ids]
-      : [...room.selected_pack_ids]
+    const importedLibrary = normalizeImportedPackLibrary(structuredClone(
+      backup.library.imported_packs.length
+        ? backup.library.imported_packs
+        : backup.library.packs ?? [],
+    ))
+    const importedSelectedPackIds = backup.library.selected_built_in_pack_ids.length
+      ? [...backup.library.selected_built_in_pack_ids]
+      : [...room.selected_built_in_pack_ids]
     const deck = structuredClone(backup.session.deck ?? [])
     const turnOrder = backup.session.turn_order
       .map((nickname) => nicknameToPlayer.get(nickname)?.id)
@@ -723,8 +724,8 @@ export class RoomDurableObject {
     room.map_cards = structuredClone(backup.map.cards)
     room.connections = structuredClone(backup.map.connections)
     room.annotations = structuredClone(backup.map.annotations)
-    room.pack_library = importedLibrary
-    room.selected_pack_ids = importedSelectedPackIds
+    room.imported_pack_library = importedLibrary
+    room.selected_built_in_pack_ids = normalizeBuiltInPackSelection(importedSelectedPackIds, true)
     room.settings = {
       ...room.settings,
       imports_enabled: backup.settings?.imports_enabled ?? true,
@@ -749,8 +750,7 @@ export class RoomDurableObject {
       throw new Error('Select at least one built-in pack')
     }
 
-    const importedPackIds = room.selected_pack_ids.filter((packId) => !isBuiltInPackId(packId))
-    room.selected_pack_ids = [...selectedBuiltInPackIds, ...importedPackIds]
+    room.selected_built_in_pack_ids = selectedBuiltInPackIds
     this.rebuildDeckFromSelectedPacks(selectedBuiltInPackIds)
   }
 
@@ -1003,8 +1003,8 @@ export class RoomDurableObject {
         annotations: room.annotations,
       },
       library: {
-        packs: room.pack_library,
-        selected_pack_ids: room.selected_pack_ids,
+        imported_packs: room.imported_pack_library,
+        selected_built_in_pack_ids: room.selected_built_in_pack_ids,
       },
       settings: room.settings,
       players: room.players.map(player => ({
@@ -1057,20 +1057,29 @@ export class RoomDurableObject {
 
   private migrateRoomState(room: RoomState): RoomState {
     const migrated = room as RoomState & {
+      imported_pack_library?: RoomPackLibraryItem[]
+      selected_built_in_pack_ids?: string[]
       pack_library?: RoomPackLibraryItem[]
       settings?: { imports_enabled?: boolean }
+      selected_pack_ids?: string[]
     }
-    const packLibrary = migrated.pack_library?.length ? migrated.pack_library : createBuiltInPackLibrary()
-    const importedPackIds = new Set(packLibrary.filter((pack) => pack.source === 'imported').map((pack) => pack.id))
-    const builtInSelection = normalizeBuiltInPackSelection(room.selected_pack_ids, false)
-    const importedSelection = (room.selected_pack_ids ?? []).filter((packId) => importedPackIds.has(packId))
-    const selectedPackIds = [
-      ...(builtInSelection.length ? builtInSelection : normalizeBuiltInPackSelection(undefined, true)),
-      ...importedSelection,
-    ]
+    const importedPackLibrary = normalizeImportedPackLibrary(
+      migrated.imported_pack_library?.length ? migrated.imported_pack_library : migrated.pack_library ?? [],
+    )
+    const selectedBuiltInPackIds = normalizeBuiltInPackSelection(
+      migrated.selected_built_in_pack_ids?.length ? migrated.selected_built_in_pack_ids : migrated.selected_pack_ids,
+      true,
+    )
+    const {
+      imported_pack_library: _currentImportedPackLibrary,
+      selected_built_in_pack_ids: _currentSelectedBuiltInPackIds,
+      pack_library: _legacyPackLibrary,
+      selected_pack_ids: _legacySelectedPackIds,
+      ...baseRoom
+    } = migrated
 
     return {
-      ...room,
+      ...baseRoom,
       deck: room.deck.map((card) => normalizeStoredCard(card)),
       hands: Object.fromEntries(
         Object.entries(room.hands).map(([playerId, cards]) => [playerId, cards.map((card) => normalizeStoredCard(card))]),
@@ -1079,11 +1088,12 @@ export class RoomDurableObject {
       settings: {
         imports_enabled: migrated.settings?.imports_enabled ?? true,
       },
-      pack_library: packLibrary.map((pack) => ({
+      imported_pack_library: importedPackLibrary.map((pack) => ({
         ...pack,
+        source: 'imported',
         cards: pack.cards.map((card) => normalizeStoredPackCard(card)),
       })),
-      selected_pack_ids: Array.from(new Set(selectedPackIds)),
+      selected_built_in_pack_ids: Array.from(new Set(selectedBuiltInPackIds)),
     }
   }
 
@@ -1100,7 +1110,7 @@ export class RoomDurableObject {
   }
 
   private requirePackLibraryItem(packId: string): RoomPackLibraryItem {
-    const pack = this.requireRoom().pack_library.find((item) => item.id === packId)
+    const pack = createPackLibrary(this.requireRoom().imported_pack_library).find((item) => item.id === packId)
     if (!pack) throw new Error('Unknown pack')
     return pack
   }

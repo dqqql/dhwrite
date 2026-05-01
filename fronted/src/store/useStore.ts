@@ -329,7 +329,7 @@ export const useStore = create<AppStore>((set, get) => {
         const response = await createRoomRequest({
           nickname: cleanedNickname,
           room_name: roomName.trim(),
-          selected_pack_ids: selectedPackIds,
+          selected_built_in_pack_ids: selectedPackIds,
         })
         await connectSession(response.session)
         get().addToast(`房间已创建，邀请码 ${response.session.invite_code}`, 'success')

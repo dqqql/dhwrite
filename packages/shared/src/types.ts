@@ -109,9 +109,9 @@ export interface RoomState {
   map_cards: MapCard[]
   connections: Connection[]
   annotations: Annotation[]
-  pack_library: RoomPackLibraryItem[]
+  imported_pack_library: RoomPackLibraryItem[]
   settings: RoomSettings
-  selected_pack_ids: string[]
+  selected_built_in_pack_ids: string[]
   drawn_this_turn: Record<string, boolean>
   snapshot_version: number
   updated_at: string
@@ -120,7 +120,9 @@ export interface RoomState {
 export interface DhPack {
   format: 'dhpack'
   version: 1
+  id?: string
   pack_name: string
+  description?: string
   cards: Array<{
     id?: string
     type: DeckCardType
@@ -154,8 +156,10 @@ export interface DhRoomBackup {
     annotations: Annotation[]
   }
   library: {
-    packs: RoomPackLibraryItem[]
-    selected_pack_ids: string[]
+    imported_packs: RoomPackLibraryItem[]
+    selected_built_in_pack_ids: string[]
+    packs?: RoomPackLibraryItem[]
+    selected_pack_ids?: string[]
   }
   settings: RoomSettings
   players: Array<Pick<Player, 'id' | 'nickname' | 'color' | 'is_host' | 'is_online'>>

@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { createPackLibrary } from '@dhgc/shared'
 import { useStore } from '@/store/useStore'
 import { Modal } from './Modal'
 import { BookOpen, CheckSquare, Download, Layers3 } from 'lucide-react'
@@ -16,7 +17,9 @@ export function CardLibraryModal() {
   const [activePackId, setActivePackId] = useState<string | null>(null)
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([])
 
-  const packs = room?.pack_library ?? []
+  const packs = useMemo(() => (
+    room ? createPackLibrary(room.imported_pack_library) : []
+  ), [room])
   const activePack = useMemo(() => {
     if (!packs.length) return null
     return packs.find((pack) => pack.id === activePackId) ?? packs[0]
