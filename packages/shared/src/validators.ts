@@ -1,6 +1,6 @@
 import type { CardType, DeckCardType, DhRoomBackup, DhPack, RoomPackLibraryItem, RoomSettings } from './types'
 
-const CARD_TYPES: CardType[] = ['Location', 'Feature', 'Hook', 'Role']
+const CARD_TYPES: CardType[] = ['Location', 'Feature', 'Hook', 'Custom', 'Role']
 const LEGACY_CARD_TYPES = new Set(['NPC'])
 
 export function isCardType(value: unknown): value is CardType {
@@ -15,6 +15,20 @@ export function normalizeCardType(value: unknown): CardType | null {
 function normalizeDeckCardType(value: unknown): DeckCardType | null {
   const normalized = normalizeCardType(value)
   if (!normalized || normalized === 'Role') return null
+  return normalized
+}
+
+function normalizeCustomTypeName(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value !== 'string') {
+    throw new Error('Custom type name must be a string when provided')
+  }
+
+  const normalized = value.trim().slice(0, 20)
+  if (!normalized) {
+    throw new Error('Custom type name must not be empty')
+  }
+
   return normalized
 }
 
@@ -41,12 +55,17 @@ export function assertDhPack(value: unknown): DhPack {
     if (!card || typeof card !== 'object') throw new Error(`Card ${index} must be an object`)
     const normalizedType = normalizeDeckCardType(card.type)
     if (!normalizedType) throw new Error(`Card ${index} has invalid type`)
+    const customTypeName = normalizeCustomTypeName((card as { custom_type_name?: unknown }).custom_type_name)
+    if (normalizedType === 'Custom' && !customTypeName) {
+      throw new Error(`Card ${index} custom_type_name is required for Custom cards`)
+    }
     if (typeof card.title !== 'string' || !card.title.trim()) throw new Error(`Card ${index} title is required`)
     if (typeof card.content !== 'string') throw new Error(`Card ${index} content is required`)
     if (typeof card.style !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(card.style)) {
       throw new Error(`Card ${index} style must be a hex color`)
     }
     ;(card as { type: DeckCardType }).type = normalizedType
+    ;(card as { custom_type_name?: string }).custom_type_name = normalizedType === 'Custom' ? customTypeName : undefined
   }
 
   return pack as DhPack
@@ -135,6 +154,10 @@ function assertRoomLibrary(packs: unknown, selectedPackIds: unknown): asserts pa
       if (!card || typeof card !== 'object') throw new Error(`Library pack ${index} card ${cardIndex} must be an object`)
       const normalizedType = normalizeDeckCardType(card.type)
       if (!normalizedType) throw new Error(`Library pack ${index} card ${cardIndex} has invalid type`)
+      const customTypeName = normalizeCustomTypeName((card as { custom_type_name?: unknown }).custom_type_name)
+      if (normalizedType === 'Custom' && !customTypeName) {
+        throw new Error(`Library pack ${index} card ${cardIndex} custom_type_name is required for Custom cards`)
+      }
       if (typeof card.id !== 'string' || !card.id) throw new Error(`Library pack ${index} card ${cardIndex} id is required`)
       if (typeof card.title !== 'string' || !card.title.trim()) throw new Error(`Library pack ${index} card ${cardIndex} title is required`)
       if (typeof card.content !== 'string') throw new Error(`Library pack ${index} card ${cardIndex} content is required`)
@@ -142,6 +165,7 @@ function assertRoomLibrary(packs: unknown, selectedPackIds: unknown): asserts pa
         throw new Error(`Library pack ${index} card ${cardIndex} style must be a hex color`)
       }
       ;(card as { type: DeckCardType }).type = normalizedType
+      ;(card as { custom_type_name?: string }).custom_type_name = normalizedType === 'Custom' ? customTypeName : undefined
     }
   }
 }
@@ -153,11 +177,14 @@ function assertRoomSettings(settings: unknown): asserts settings is RoomSettings
 }
 
 function normalizeBackupCardTypes(backup: Partial<DhRoomBackup>) {
-  const normalizeCard = (card: { type?: unknown }) => {
+  const normalizeCard = (card: { type?: unknown; custom_type_name?: unknown }) => {
     const normalizedType = normalizeCardType(card.type)
     if (normalizedType) {
       ;(card as { type: CardType }).type = normalizedType
     }
+
+    const customTypeName = normalizeCustomTypeName(card.custom_type_name)
+    ;(card as { custom_type_name?: string }).custom_type_name = normalizedType === 'Custom' ? customTypeName : undefined
   }
 
   backup.session?.deck?.forEach(normalizeCard)

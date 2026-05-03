@@ -378,7 +378,7 @@ export function MapCanvas() {
     })
   }, [room])
 
-  const dropPreviewConfig = dropPreview ? getCardVisualConfig(dropPreview.card.type, dropPreview.card.style) : null
+  const dropPreviewConfig = dropPreview ? getCardVisualConfig(dropPreview.card.type, dropPreview.card.style, dropPreview.card.custom_type_name) : null
 
   return (
     <div
@@ -839,7 +839,7 @@ function CardTravelAnimationOverlay({
   onComplete: () => void
 }) {
   const [entered, setEntered] = useState(false)
-  const cfg = getCardVisualConfig(card.type, card.style)
+  const cfg = getCardVisualConfig(card.type, card.style, card.custom_type_name)
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setEntered(true))

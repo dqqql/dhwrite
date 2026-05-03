@@ -9,6 +9,7 @@ export const CARD_GRID_SIZE: Record<CardType, { cols: number; rows: number }> = 
   Location: { cols: 9, rows: 6 },
   Feature: { cols: 8, rows: 5 },
   Hook: { cols: 8, rows: 5 },
+  Custom: { cols: 8, rows: 5 },
   Role: { cols: 8, rows: 6 },
 }
 

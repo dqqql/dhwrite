@@ -436,7 +436,15 @@ export class RoomDurableObject {
         if (message.payload.card.type === 'Role') {
           throw new Error('Role cards are created automatically for each player')
         }
-        const card: DhCard = { ...message.payload.card, id: id('card'), is_custom: true }
+        if (message.payload.card.type === 'Custom' && !cleanOptionalText(message.payload.card.custom_type_name, 20)) {
+          throw new Error('Custom cards require a custom_type_name')
+        }
+        const card: DhCard = {
+          ...message.payload.card,
+          custom_type_name: normalizeStoredCustomTypeName(message.payload.card.type, message.payload.card.custom_type_name),
+          id: id('card'),
+          is_custom: true,
+        }
         room.hands[player.id] = [...(room.hands[player.id] ?? []), card]
         await this.commit('card.create')
         return
@@ -477,6 +485,17 @@ export class RoomDurableObject {
         this.requireUnlockedOrOwner(player, message.payload.cardId)
         const card = this.requireMapCard(message.payload.cardId)
         const updates: MapCardUpdateInput = { ...message.payload.updates }
+        const nextType = updates.type ?? card.type
+
+        if (nextType === 'Custom') {
+          const customTypeName = normalizeStoredCustomTypeName(nextType, updates.custom_type_name ?? card.custom_type_name)
+          if (!customTypeName) {
+            throw new Error('Custom cards require a custom_type_name')
+          }
+          updates.custom_type_name = customTypeName
+        } else if (Object.prototype.hasOwnProperty.call(updates, 'custom_type_name')) {
+          updates.custom_type_name = undefined
+        }
 
         if (card.type === 'Location' && Object.prototype.hasOwnProperty.call(updates, 'territory')) {
           if (updates.territory) {
@@ -711,6 +730,7 @@ export class RoomDurableObject {
     room.deck = shuffle([...room.deck, ...selectedCards.map((card) => ({
       id: id('card'),
       type: card.type,
+      custom_type_name: card.custom_type_name,
       title: card.title,
       content: card.content,
       style: card.style,
@@ -835,6 +855,7 @@ export class RoomDurableObject {
     return pack.cards.map((card) => ({
       id: id('card'),
       type: card.type,
+      custom_type_name: card.custom_type_name,
       title: card.title,
       content: card.content,
       style: card.style,
@@ -1273,6 +1294,7 @@ function stripMapFields(card: MapCard): DhCard {
   return {
     id: card.id,
     type: card.type,
+    custom_type_name: card.custom_type_name,
     title: card.title,
     content: card.content,
     style: card.style,
@@ -1299,20 +1321,28 @@ function buildRoleCard(player: Player): DhCard {
   }
 }
 
-function normalizeStoredCard<T extends { type: CardType; role_details?: RoleCardDetails }>(card: T): T {
+function normalizeStoredCustomTypeName(type: CardType, customTypeName: unknown): string | undefined {
+  if (type !== 'Custom') return undefined
+  return cleanOptionalText(customTypeName, 20)
+}
+
+function normalizeStoredCard<T extends { type: CardType; custom_type_name?: string; role_details?: RoleCardDetails }>(card: T): T {
   const normalizedType = normalizeCardType(card.type) ?? (card.role_details ? 'Role' : 'Hook')
   return {
     ...card,
     type: normalizedType,
+    custom_type_name: normalizeStoredCustomTypeName(normalizedType, card.custom_type_name),
     ...(normalizedType === 'Role' ? {} : { role_details: undefined }),
   }
 }
 
-function normalizeStoredPackCard<T extends { type: DeckCardType }>(card: T): T {
+function normalizeStoredPackCard<T extends { type: DeckCardType; custom_type_name?: string }>(card: T): T {
   const normalizedType = normalizeCardType(card.type)
+  const nextType = normalizedType === 'Role' || !normalizedType ? 'Hook' : normalizedType
   return {
     ...card,
-    type: normalizedType === 'Role' || !normalizedType ? 'Hook' : normalizedType,
+    type: nextType,
+    custom_type_name: normalizeStoredCustomTypeName(nextType, card.custom_type_name),
   }
 }
 

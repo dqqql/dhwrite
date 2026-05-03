@@ -9,6 +9,7 @@ function normalizeLibraryPackCards(packId: string, pack: Pick<DhPack, 'cards'>) 
   return pack.cards.map((card, index) => ({
     id: card.id ?? `${packId}:card:${index}`,
     type: card.type,
+    custom_type_name: card.custom_type_name,
     title: card.title,
     content: card.content,
     style: card.style,
@@ -73,6 +74,7 @@ export function normalizeImportedPackLibrary(packLibrary: RoomPackLibraryItem[] 
       cards: pack.cards.map((card) => ({
         id: card.id,
         type: card.type,
+        custom_type_name: card.custom_type_name,
         title: card.title,
         content: card.content,
         style: card.style,

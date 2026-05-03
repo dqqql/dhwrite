@@ -1,4 +1,4 @@
-export type DeckCardType = 'Location' | 'Feature' | 'Hook'
+export type DeckCardType = 'Location' | 'Feature' | 'Hook' | 'Custom'
 export type CardType = DeckCardType | 'Role'
 export type RoomMode = 'free' | 'co-creation' | 'normal'
 export type ConnectionColor = 'red' | 'green' | 'gray'
@@ -14,6 +14,7 @@ export interface RoleCardDetails {
 export interface DhCard {
   id: string
   type: CardType
+  custom_type_name?: string
   title: string
   content: string
   style: string
@@ -76,6 +77,7 @@ export interface Player {
 export interface RoomPackCard {
   id: string
   type: DeckCardType
+  custom_type_name?: string
   title: string
   content: string
   style: string
@@ -126,6 +128,7 @@ export interface DhPack {
   cards: Array<{
     id?: string
     type: DeckCardType
+    custom_type_name?: string
     title: string
     content: string
     style: string

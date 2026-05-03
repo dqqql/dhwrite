@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { fetchDhRoomBackup } from '@/lib/realtime'
 import { useStore } from '@/store/useStore'
 import { getCardBodyText } from '@/utils/cardText'
+import { getCardTypeLabel } from '@/utils/cardTypeConfig'
 import {
   BookOpen,
   ChevronDown,
@@ -15,6 +16,7 @@ import {
   LogOut,
   Play,
   Settings,
+  Share2,
   StopCircle,
   Upload,
   Wifi,
@@ -43,7 +45,6 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   if (!room) return null
 
   const currentRoom = room
-
   const isHost = currentRoom.host_player_id === currentPlayerId
   const isCoCreation = currentRoom.mode === 'co-creation'
   const modeLabel = currentRoom.mode === 'co-creation'
@@ -55,6 +56,32 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const isReconnecting = connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
   const expiresAt = new Date(currentRoom.expires_at)
   const daysLeft = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+
+  async function shareInviteCode() {
+    const shareText = `${currentRoom.room_name} 邀请码：${currentRoom.invite_code}`
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: currentRoom.room_name,
+          text: shareText,
+        })
+        addToast('邀请码已分享', 'success')
+        return
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return
+        }
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareText)
+      addToast('邀请码已复制，可直接发送给队友', 'success')
+    } catch {
+      addToast(`邀请码：${currentRoom.invite_code}`, 'info')
+    }
+  }
 
   async function exportDhRoom() {
     try {
@@ -78,6 +105,15 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
     const locations = currentRoom.map_cards.filter((card) => card.type === 'Location')
     const features = currentRoom.map_cards.filter((card) => card.type === 'Feature')
     const hooks = currentRoom.map_cards.filter((card) => card.type === 'Hook')
+    const customCards = currentRoom.map_cards.filter((card) => card.type === 'Custom')
+    const customCardGroups = new Map<string, typeof customCards>()
+
+    customCards.forEach((card) => {
+      const label = getCardTypeLabel(card.type, card.custom_type_name)
+      const currentCards = customCardGroups.get(label) ?? []
+      currentCards.push(card)
+      customCardGroups.set(label, currentCards)
+    })
 
     if (roleCards.length) {
       markdown += '## 角色卡\n'
@@ -106,6 +142,13 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
         markdown += `### ${card.title}\n${getCardBodyText(card)}\n\n`
       })
     }
+
+    customCardGroups.forEach((cards, label) => {
+      markdown += `## ${label}\n`
+      cards.forEach((card) => {
+        markdown += `### ${card.title}\n${getCardBodyText(card)}\n\n`
+      })
+    })
 
     if (currentRoom.connections.length) {
       markdown += '## 关系\n'
@@ -292,6 +335,10 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
           </button>
         )}
 
+        <button className="btn btn-secondary btn-sm" onClick={shareInviteCode}>
+          <Share2 size={13} /> 分享邀请码
+        </button>
+
         <button className="btn btn-secondary btn-sm" onClick={openCardLibrary}>
           <BookOpen size={13} /> 卡包库
         </button>
@@ -349,17 +396,17 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
           boxShadow: '0 1px 4px rgba(37,99,235,0.10)',
           whiteSpace: 'nowrap',
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(124,58,237,0.14))'
-          e.currentTarget.style.transform = 'translateY(-1px)'
-          e.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.20)'
-          e.currentTarget.style.borderColor = 'rgba(37,99,235,0.45)'
+        onMouseEnter={(event) => {
+          event.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(124,58,237,0.14))'
+          event.currentTarget.style.transform = 'translateY(-1px)'
+          event.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.20)'
+          event.currentTarget.style.borderColor = 'rgba(37,99,235,0.45)'
         }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.10), rgba(124,58,237,0.08))'
-          e.currentTarget.style.transform = ''
-          e.currentTarget.style.boxShadow = '0 1px 4px rgba(37,99,235,0.10)'
-          e.currentTarget.style.borderColor = 'rgba(37,99,235,0.28)'
+        onMouseLeave={(event) => {
+          event.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.10), rgba(124,58,237,0.08))'
+          event.currentTarget.style.transform = ''
+          event.currentTarget.style.boxShadow = '0 1px 4px rgba(37,99,235,0.10)'
+          event.currentTarget.style.borderColor = 'rgba(37,99,235,0.28)'
         }}
       >
         <HelpCircle size={13} />
@@ -381,6 +428,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
       >
         <LogOut size={13} /> 退出
       </button>
+
       {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
     </div>
   )

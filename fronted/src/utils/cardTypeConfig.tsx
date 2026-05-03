@@ -1,6 +1,6 @@
 import React from 'react'
 import type { CardType } from '@/types'
-import { BookOpen, MapPin, Sparkles, User } from 'lucide-react'
+import { BookOpen, MapPin, Shapes, Sparkles, User } from 'lucide-react'
 
 type CardTypeBaseConfig = {
   label: string
@@ -33,6 +33,11 @@ export const CARD_TYPE_CONFIG: Record<CardType, CardTypeBaseConfig> = {
     defaultColor: '#3b82f6',
     Icon: ({ size = 12 }) => <BookOpen size={size} />,
   },
+  Custom: {
+    label: '自定义',
+    defaultColor: '#14b8a6',
+    Icon: ({ size = 12 }) => <Shapes size={size} />,
+  },
   Role: {
     label: '角色卡',
     defaultColor: '#f59e0b',
@@ -40,12 +45,19 @@ export const CARD_TYPE_CONFIG: Record<CardType, CardTypeBaseConfig> = {
   },
 }
 
-function resolveCardTypeConfig(type: unknown): CardTypeBaseConfig {
+function resolveCardTypeConfig(type: unknown, customTypeName?: string): CardTypeBaseConfig {
   if (type === 'NPC') {
     return CARD_TYPE_CONFIG.Hook
   }
 
   if (typeof type === 'string' && type in CARD_TYPE_CONFIG) {
+    if (type === 'Custom') {
+      return {
+        ...CARD_TYPE_CONFIG.Custom,
+        label: customTypeName?.trim() || CARD_TYPE_CONFIG.Custom.label,
+      }
+    }
+
     return CARD_TYPE_CONFIG[type as CardType]
   }
 
@@ -77,12 +89,12 @@ function getReadableTextColor(hex: string) {
   return brightness > 170 ? '#0f172a' : '#f8fafc'
 }
 
-export function getCardTypeLabel(type: CardType): string {
-  return resolveCardTypeConfig(type).label
+export function getCardTypeLabel(type: CardType, customTypeName?: string): string {
+  return resolveCardTypeConfig(type, customTypeName).label
 }
 
-export function getCardVisualConfig(type: CardType, accentColor?: string): CardVisualConfig {
-  const base = resolveCardTypeConfig(type)
+export function getCardVisualConfig(type: CardType, accentColor?: string, customTypeName?: string): CardVisualConfig {
+  const base = resolveCardTypeConfig(type, customTypeName)
   const color = accentColor ?? base.defaultColor
 
   return {

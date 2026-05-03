@@ -31,7 +31,7 @@ export function DrawModal() {
 }
 
 function DrawOptionCard({ card, delay, onSelect }: { card: DhCard; delay: number; onSelect: () => void }) {
-  const cfg = getCardVisualConfig(card.type, card.style)
+  const cfg = getCardVisualConfig(card.type, card.style, card.custom_type_name)
 
   return (
     <button

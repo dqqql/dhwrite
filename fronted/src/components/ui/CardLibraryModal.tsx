@@ -173,7 +173,7 @@ export function CardLibraryModal() {
                       <div style={{ minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                           <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>{card.title}</strong>
-                          <span style={{ fontSize: 10, color: card.style }}>{getCardTypeLabel(card.type)}</span>
+                          <span style={{ fontSize: 10, color: card.style }}>{getCardTypeLabel(card.type, card.custom_type_name)}</span>
                         </div>
                         <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                           {card.content}

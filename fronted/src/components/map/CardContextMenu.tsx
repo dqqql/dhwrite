@@ -37,7 +37,7 @@ export function CardContextMenu() {
   if (!card) return null
 
   const isCoCreation = room.mode === 'co-creation'
-  const typeLabel = getCardTypeLabel(card.type)
+  const typeLabel = getCardTypeLabel(card.type, card.custom_type_name)
   const isLockedByOther = Boolean(card.locked_by_player_id && card.locked_by_player_id !== currentPlayerId)
 
   return (

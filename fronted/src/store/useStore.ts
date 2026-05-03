@@ -574,11 +574,11 @@ export const useStore = create<AppStore>((set, get) => {
     },
 
     createCustomCard: (cardData) => {
-      const { type, title, content, style } = cardData
+      const { type, custom_type_name, title, content, style } = cardData
       const sent = sendMessage({
         type: 'card.create',
         payload: {
-          card: { type, title, content, style },
+          card: { type, custom_type_name, title, content, style },
         },
       })
 

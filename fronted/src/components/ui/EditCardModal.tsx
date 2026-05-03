@@ -1,15 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '@/store/useStore'
-import { Modal } from './Modal'
 import type { RoleCardDetails } from '@/types'
+import { Modal } from './Modal'
 import { getCardBodyLines } from '@/utils/cardText'
-
-const TYPE_LABELS = {
-  Location: '地点',
-  Feature: '特色',
-  Hook: '故事',
-  Role: '角色卡',
-} as const
+import { getCardTypeLabel } from '@/utils/cardTypeConfig'
 
 const EMPTY_ROLE_DETAILS: RoleCardDetails = {
   player_name: '',
@@ -38,6 +32,7 @@ export function EditCardModal() {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [style, setStyle] = useState('#2563eb')
+  const [customTypeName, setCustomTypeName] = useState('')
   const [roleDetails, setRoleDetails] = useState<RoleCardDetails>(EMPTY_ROLE_DETAILS)
   const lockedCardIdRef = useRef<string | null>(null)
 
@@ -50,6 +45,7 @@ export function EditCardModal() {
     setTitle(latestCard.title)
     setContent(latestCard.content)
     setStyle(latestCard.style)
+    setCustomTypeName(latestCard.custom_type_name ?? '')
     setRoleDetails(latestCard.role_details ?? EMPTY_ROLE_DETAILS)
   }, [editingCardId, isEditCardModalOpen])
 
@@ -77,21 +73,25 @@ export function EditCardModal() {
   }, [currentPlayerId, editingCardId, isEditCardModalOpen, lockCard, unlockCard])
 
   if (!card) return null
+
   const activeCard = card
   const previewLines = getCardBodyLines({
     type: activeCard.type,
     content,
     role_details: activeCard.type === 'Role' ? roleDetails : undefined,
   })
+  const typeLabel = getCardTypeLabel(activeCard.type, activeCard.custom_type_name)
+  const isCustomTypeInvalid = activeCard.type === 'Custom' && !customTypeName.trim()
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
-    if (!title.trim()) return
+    if (!title.trim() || isCustomTypeInvalid) return
 
     editCard(activeCard.id, {
       title: title.trim(),
       content: content.trim(),
       style,
+      custom_type_name: activeCard.type === 'Custom' ? customTypeName.trim() : undefined,
       ...(activeCard.type === 'Role'
         ? {
             role_details: {
@@ -109,10 +109,24 @@ export function EditCardModal() {
     <Modal
       open={isEditCardModalOpen}
       onClose={closeEditCardModal}
-      title={activeCard.type === 'Role' ? '编辑角色卡' : `编辑${TYPE_LABELS[activeCard.type]}卡`}
+      title={activeCard.type === 'Role' ? '编辑角色卡' : `编辑${typeLabel}卡`}
       maxWidth={520}
     >
       <form onSubmit={handleSubmit}>
+        {activeCard.type === 'Custom' && (
+          <div style={{ marginBottom: 14 }}>
+            <label className="label">自定义类型名</label>
+            <input
+              className="input"
+              value={customTypeName}
+              onChange={(event) => setCustomTypeName(event.target.value)}
+              placeholder="输入自定义类型名"
+              maxLength={20}
+              required
+            />
+          </div>
+        )}
+
         <div style={{ marginBottom: 14 }}>
           <label className="label">标题</label>
           <input
@@ -169,7 +183,7 @@ export function EditCardModal() {
         )}
 
         <div style={{ marginBottom: 18 }}>
-          <label className="label">展示色</label>
+          <label className="label">展示颜色</label>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <input
               type="color"
@@ -209,6 +223,9 @@ export function EditCardModal() {
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
             {title || '未命名卡牌'}
           </div>
+          <div style={{ fontSize: 11, color: style, marginBottom: 8 }}>
+            {getCardTypeLabel(activeCard.type, activeCard.type === 'Custom' ? customTypeName : activeCard.custom_type_name)}
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, lineHeight: 1.65, color: 'var(--text-secondary)' }}>
             {previewLines.map((line) => (
               <div key={line}>{line}</div>
@@ -221,7 +238,7 @@ export function EditCardModal() {
           <button type="button" className="btn btn-secondary" onClick={closeEditCardModal}>
             取消
           </button>
-          <button type="submit" className="btn btn-primary" disabled={!title.trim()}>
+          <button type="submit" className="btn btn-primary" disabled={!title.trim() || isCustomTypeInvalid}>
             保存修改
           </button>
         </div>

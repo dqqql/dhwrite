@@ -18,7 +18,7 @@ export function DhCardNode({ card, canvasScale }: CardNodeProps) {
     lockCard, unlockCard, moveCard, commitMoveCard, updateCardTerritory,
     commitCardTerritory, setContextMenu, connectionDraftFromCardId, completeConnection,
   } = useStore()
-  const cfg = getCardVisualConfig(card.type, card.style)
+  const cfg = getCardVisualConfig(card.type, card.style, card.custom_type_name)
   const currentPlayerName = room?.players.find(p => p.id === currentPlayerId)?.nickname
   const isLocked = !!card.locked_by && card.locked_by !== currentPlayerName
   const territory = card.type === 'Location' ? card.territory : undefined

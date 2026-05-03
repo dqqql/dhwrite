@@ -178,7 +178,7 @@ function HandCard({ card, index, canPlay, isRoleSpecial = false }: {
   canPlay: boolean
   isRoleSpecial?: boolean
 }) {
-  const cfg = getCardVisualConfig(card.type, card.style)
+  const cfg = getCardVisualConfig(card.type, card.style, card.custom_type_name)
   const [isDragging, setIsDragging] = useState(false)
   const { beginHandCardDrag, clearHandCardDrag } = useStore()
   const bodyLines = getCardBodyLines(card)
