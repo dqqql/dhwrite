@@ -22,10 +22,12 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react'
+import { InviteCodeModal } from '@/components/ui/InviteCodeModal'
 import { TutorialModal } from '@/components/ui/TutorialModal'
 
 export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const [showTutorial, setShowTutorial] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
   const {
     room,
     currentPlayerId,
@@ -56,32 +58,6 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const isReconnecting = connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
   const expiresAt = new Date(currentRoom.expires_at)
   const daysLeft = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
-
-  async function shareInviteCode() {
-    const shareText = `${currentRoom.room_name} 邀请码：${currentRoom.invite_code}`
-
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: currentRoom.room_name,
-          text: shareText,
-        })
-        addToast('邀请码已分享', 'success')
-        return
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-          return
-        }
-      }
-    }
-
-    try {
-      await navigator.clipboard.writeText(shareText)
-      addToast('邀请码已复制，可直接发送给队友', 'success')
-    } catch {
-      addToast(`邀请码：${currentRoom.invite_code}`, 'info')
-    }
-  }
 
   async function exportDhRoom() {
     try {
@@ -335,7 +311,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
           </button>
         )}
 
-        <button className="btn btn-secondary btn-sm" onClick={shareInviteCode}>
+        <button className="btn btn-secondary btn-sm" onClick={() => setShowInviteModal(true)}>
           <Share2 size={13} /> 分享邀请码
         </button>
 
@@ -429,6 +405,13 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
         <LogOut size={13} /> 退出
       </button>
 
+      <InviteCodeModal
+        open={showInviteModal}
+        inviteCode={currentRoom.invite_code}
+        roomName={currentRoom.room_name}
+        onClose={() => setShowInviteModal(false)}
+        onCopied={() => addToast('邀请码已复制', 'success')}
+      />
       {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
     </div>
   )
