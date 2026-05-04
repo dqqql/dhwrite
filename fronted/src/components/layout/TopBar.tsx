@@ -330,7 +330,16 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
             <Download size={13} /> 导出 <ChevronDown size={11} />
           </button>
           {isExportMenuOpen && (
-            <div className="context-menu" style={{ top: '100%', right: 0, left: 'auto', marginTop: 4, minWidth: 220 }}>
+            <div
+              className="context-menu"
+              style={{
+                position: 'absolute',
+                top: 'calc(100% + 6px)',
+                right: 0,
+                left: 'auto',
+                minWidth: 220,
+              }}
+            >
               <div className="context-menu__item" onClick={exportDhRoom}>
                 <FileJson size={13} /> 房间备份 (.dhroom.json)
               </div>
