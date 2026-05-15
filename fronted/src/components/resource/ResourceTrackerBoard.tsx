@@ -118,7 +118,7 @@ export function ResourceTrackerBoard() {
           onChange={updateTrackerFear}
         />
 
-        {!myColumn && (
+        {!isHost && !myColumn && (
           <div
             style={{
               width: 420,
@@ -271,7 +271,9 @@ function FearBar({
             <span style={{ fontSize: 48, lineHeight: 1, fontWeight: 900, color: '#4c0519' }}>{value}</span>
             <span style={{ fontSize: 18, fontWeight: 700, color: '#f43f5e' }}>/ {max}</span>
           </div>
-          <div style={{ marginTop: 6, fontSize: 12, color: '#ef4444' }}>点击进度格可设置当前恐惧点。</div>
+          {editable && (
+            <div style={{ marginTop: 6, fontSize: 12, color: '#ef4444' }}>点击进度格可设置当前恐惧点。</div>
+          )}
         </div>
 
         {editable && (
