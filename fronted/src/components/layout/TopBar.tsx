@@ -1,8 +1,4 @@
 import React, { useState } from 'react'
-import { fetchDhRoomBackup } from '@/lib/realtime'
-import { useStore } from '@/store/useStore'
-import { getCardBodyText } from '@/utils/cardText'
-import { getCardTypeLabel } from '@/utils/cardTypeConfig'
 import {
   BookOpen,
   ChevronDown,
@@ -22,8 +18,19 @@ import {
   Wifi,
   WifiOff,
 } from 'lucide-react'
+import { fetchDhRoomBackup } from '@/lib/realtime'
+import { useStore } from '@/store/useStore'
+import { getCardBodyText } from '@/utils/cardText'
+import { getCardTypeLabel } from '@/utils/cardTypeConfig'
 import { InviteCodeModal } from '@/components/ui/InviteCodeModal'
 import { TutorialModal } from '@/components/ui/TutorialModal'
+
+function getModeLabel(roomType: string, mode: string) {
+  if (roomType === 'resource-tracker') return '追踪资源'
+  if (mode === 'co-creation') return '共创模式'
+  if (mode === 'normal') return '普通模式'
+  return '自由模式'
+}
 
 export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   const [showTutorial, setShowTutorial] = useState(false)
@@ -45,19 +52,16 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
   } = useStore()
 
   if (!room) return null
-
   const currentRoom = room
+
   const isHost = currentRoom.host_player_id === currentPlayerId
+  const isResourceTracker = currentRoom.room_type === 'resource-tracker'
   const isCoCreation = currentRoom.mode === 'co-creation'
-  const modeLabel = currentRoom.mode === 'co-creation'
-    ? '共创模式'
-    : currentRoom.mode === 'normal'
-      ? '普通模式'
-      : '自由模式'
   const isDisconnected = connectionStatus === 'error' || connectionStatus === 'idle'
   const isReconnecting = connectionStatus === 'reconnecting' || connectionStatus === 'connecting'
   const expiresAt = new Date(currentRoom.expires_at)
   const daysLeft = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+  const modeLabel = getModeLabel(currentRoom.room_type, currentRoom.mode)
 
   async function exportDhRoom() {
     try {
@@ -189,7 +193,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
             color: 'white',
           }}
         >
-          地
+          房
         </div>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>
@@ -209,7 +213,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
         {modeLabel}
       </div>
 
-      {isCoCreation && (
+      {!isResourceTracker && isCoCreation && (
         <div
           style={{
             display: 'flex',
@@ -305,7 +309,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {!isCoCreation && isHost && (
+        {!isResourceTracker && !isCoCreation && isHost && (
           <button className="btn btn-primary btn-sm" onClick={startCoCreation}>
             <Play size={13} /> 开始共创
           </button>
@@ -315,14 +319,17 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
           <Share2 size={13} /> 分享邀请码
         </button>
 
-        <button className="btn btn-secondary btn-sm" onClick={openCardLibrary}>
-          <BookOpen size={13} /> 卡包库
-        </button>
-
-        {isHost && (
-          <button className="btn btn-secondary btn-sm" onClick={openImportModal}>
-            <Upload size={13} /> 导入
-          </button>
+        {!isResourceTracker && (
+          <>
+            <button className="btn btn-secondary btn-sm" onClick={openCardLibrary}>
+              <BookOpen size={13} /> 卡包库
+            </button>
+            {isHost && (
+              <button className="btn btn-secondary btn-sm" onClick={openImportModal}>
+                <Upload size={13} /> 导入
+              </button>
+            )}
+          </>
         )}
 
         <div style={{ position: 'relative' }}>
@@ -343,15 +350,17 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
               <div className="context-menu__item" onClick={exportDhRoom}>
                 <FileJson size={13} /> 房间备份 (.dhroom.json)
               </div>
-              <div className="context-menu__item" onClick={exportMarkdown}>
-                <FileText size={13} /> 叙事摘要 (.md)
-              </div>
+              {!isResourceTracker && (
+                <div className="context-menu__item" onClick={exportMarkdown}>
+                  <FileText size={13} /> 叙事摘要 (.md)
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {isHost && isCoCreation && (
+      {isHost && !isResourceTracker && isCoCreation && (
         <>
           <div style={{ width: 1, height: 26, background: 'var(--border-default)', margin: '0 4px 0 8px' }} />
           <button className="btn btn-danger btn-sm" onClick={openEndConfirm} style={{ boxShadow: '0 0 0 1px rgba(244,63,94,0.08)' }}>
@@ -377,21 +386,7 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
           fontWeight: 700,
           fontFamily: 'inherit',
           letterSpacing: '0.02em',
-          transition: 'all 180ms cubic-bezier(0.4,0,0.2,1)',
-          boxShadow: '0 1px 4px rgba(37,99,235,0.10)',
           whiteSpace: 'nowrap',
-        }}
-        onMouseEnter={(event) => {
-          event.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(124,58,237,0.14))'
-          event.currentTarget.style.transform = 'translateY(-1px)'
-          event.currentTarget.style.boxShadow = '0 4px 12px rgba(37,99,235,0.20)'
-          event.currentTarget.style.borderColor = 'rgba(37,99,235,0.45)'
-        }}
-        onMouseLeave={(event) => {
-          event.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.10), rgba(124,58,237,0.08))'
-          event.currentTarget.style.transform = ''
-          event.currentTarget.style.boxShadow = '0 1px 4px rgba(37,99,235,0.10)'
-          event.currentTarget.style.borderColor = 'rgba(37,99,235,0.28)'
         }}
       >
         <HelpCircle size={13} />

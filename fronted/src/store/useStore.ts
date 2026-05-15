@@ -6,8 +6,11 @@ import {
   type ClientMessage,
   type DhCard,
   type MapCard,
+  type ResourceTrackerResourceKey,
+  type ResourceTrackerSheet,
   type RoomSession,
   type RoomState,
+  type RoomType,
 } from '@dhgc/shared'
 import type { Annotation, Connection, DrawOption, Rect, Toast } from '@/types'
 import { createRoomRequest, joinRoomRequest, RoomSocketConnection, type ConnectionState } from '@/lib/realtime'
@@ -77,7 +80,7 @@ interface UIState {
 interface AppStore extends UIState {
   room: RoomState | null
 
-  createRoom: (input: { nickname: string; roomName: string; selectedPackIds?: string[] }) => Promise<boolean>
+  createRoom: (input: { nickname: string; roomName: string; roomType: RoomType; selectedPackIds?: string[] }) => Promise<boolean>
   joinRoom: (input: { inviteCode: string; nickname: string }) => Promise<boolean>
 
   manualReconnect: () => void
@@ -87,6 +90,15 @@ interface AppStore extends UIState {
   endCoCreation: () => void
   updateSelectedPacks: (packIds: string[]) => void
   updateImportsEnabled: (enabled: boolean) => void
+  updateResourceChangeRequiresApproval: (enabled: boolean) => void
+
+  importTrackerCharacter: (fileName: string, sheet: ResourceTrackerSheet) => void
+  updateTrackerSheet: (columnId: string, sheet: ResourceTrackerSheet) => void
+  updateTrackerResource: (columnId: string, resourceKey: ResourceTrackerResourceKey, nextValue: number | boolean[]) => void
+  updateTrackerFear: (value: number) => void
+  moveTrackerColumn: (columnId: string, direction: 'left' | 'right') => void
+  approveTrackerResourceRequest: (requestId: string) => void
+  rejectTrackerResourceRequest: (requestId: string) => void
 
   endTurn: () => void
   forceSkipTurn: (playerId: string) => void
@@ -212,6 +224,11 @@ function clearTransientOverrides() {
 }
 
 function preserveTransientRoomState(previous: RoomState | null, incoming: RoomState): RoomState {
+  if (incoming.room_type === 'resource-tracker') {
+    clearTransientOverrides()
+    return incoming
+  }
+
   if (!previous) return incoming
 
   const expandedById = new Map(previous.map_cards.map((card) => [card.id, card.is_expanded]))
@@ -412,7 +429,7 @@ export const useStore = create<AppStore>((set, get) => {
     session: null,
     room: null,
 
-    createRoom: async ({ nickname, roomName, selectedPackIds }) => {
+    createRoom: async ({ nickname, roomName, roomType, selectedPackIds }) => {
       const cleanedNickname = nickname.trim()
       if (!cleanedNickname) {
         get().addToast('请输入昵称', 'error')
@@ -428,6 +445,7 @@ export const useStore = create<AppStore>((set, get) => {
         const response = await createRoomRequest({
           nickname: cleanedNickname,
           room_name: roomName.trim(),
+          room_type: roomType,
           selected_built_in_pack_ids: selectedPackIds,
         })
         await connectSession(response.session)
@@ -554,6 +572,74 @@ export const useStore = create<AppStore>((set, get) => {
       if (sent) {
         get().addToast(enabled ? '已启用导入功能' : '已关闭导入功能', 'success')
       }
+    },
+
+    updateResourceChangeRequiresApproval: (enabled) => {
+      const sent = sendMessage({
+        type: 'room.updateSettings',
+        payload: { resourceChangeRequiresApproval: enabled },
+      })
+
+      if (sent) {
+        get().addToast(enabled ? '已开启资源审批' : '已关闭资源审批', 'success')
+      }
+    },
+
+    importTrackerCharacter: (fileName, sheet) => {
+      const sent = sendMessage({
+        type: 'tracker.importCharacter',
+        payload: { fileName, sheet },
+      })
+
+      if (sent) {
+        get().addToast(`已上传角色卡：${sheet.character_name || fileName}`, 'success')
+      }
+    },
+
+    updateTrackerSheet: (columnId, sheet) => {
+      const sent = sendMessage({
+        type: 'tracker.updateSheet',
+        payload: { columnId, sheet },
+      })
+
+      if (sent) {
+        get().addToast(`已保存 ${sheet.character_name} 的信息`, 'success')
+      }
+    },
+
+    updateTrackerResource: (columnId, resourceKey, nextValue) => {
+      sendMessage({
+        type: 'tracker.updateResource',
+        payload: { columnId, resourceKey, nextValue },
+      })
+    },
+
+    updateTrackerFear: (value) => {
+      sendMessage({
+        type: 'tracker.updateFear',
+        payload: { value },
+      })
+    },
+
+    moveTrackerColumn: (columnId, direction) => {
+      sendMessage({
+        type: 'tracker.moveColumn',
+        payload: { columnId, direction },
+      })
+    },
+
+    approveTrackerResourceRequest: (requestId) => {
+      sendMessage({
+        type: 'tracker.approveResourceChange',
+        payload: { requestIdToResolve: requestId },
+      })
+    },
+
+    rejectTrackerResourceRequest: (requestId) => {
+      sendMessage({
+        type: 'tracker.rejectResourceChange',
+        payload: { requestIdToResolve: requestId },
+      })
     },
 
     endTurn: () => {

@@ -116,6 +116,7 @@ export function assertDhRoomBackup(value: unknown): DhRoomBackup {
   } else {
     ;(backup as { settings?: unknown }).settings = {
       imports_enabled: false,
+      resource_change_requires_approval: false,
     }
   }
 
@@ -174,6 +175,12 @@ function assertRoomSettings(settings: unknown): asserts settings is RoomSettings
   if (!settings || typeof settings !== 'object') throw new Error('Room settings must be an object')
   const candidate = settings as Partial<RoomSettings>
   if (typeof candidate.imports_enabled !== 'boolean') throw new Error('Room imports_enabled must be a boolean')
+  if (candidate.resource_change_requires_approval !== undefined && typeof candidate.resource_change_requires_approval !== 'boolean') {
+    throw new Error('Room resource_change_requires_approval must be a boolean')
+  }
+  if (candidate.resource_change_requires_approval === undefined) {
+    candidate.resource_change_requires_approval = false
+  }
 }
 
 function normalizeBackupCardTypes(backup: Partial<DhRoomBackup>) {

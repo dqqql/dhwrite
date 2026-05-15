@@ -1,14 +1,32 @@
-import type { Annotation, Connection, DhCard, DhPack, DhRoomBackup, Rect, RoomState } from './types'
+import type {
+  Annotation,
+  Connection,
+  DhCard,
+  DhPack,
+  DhRoomBackup,
+  Rect,
+  ResourceTrackerResourceKey,
+  ResourceTrackerSheet,
+  RoomState,
+  RoomType,
+} from './types'
 
 export type ClientMessage =
   | { type: 'room.startCoCreation'; requestId?: string; payload?: Record<string, never> }
   | { type: 'room.endCoCreation'; requestId?: string; payload?: Record<string, never> }
   | { type: 'room.updateSelectedPacks'; requestId?: string; payload: { selectedPackIds: string[] } }
-  | { type: 'room.updateSettings'; requestId?: string; payload: { importsEnabled: boolean } }
+  | { type: 'room.updateSettings'; requestId?: string; payload: { importsEnabled?: boolean; resourceChangeRequiresApproval?: boolean } }
   | { type: 'room.importPack'; requestId?: string; payload: { pack: DhPack } }
   | { type: 'room.importLibraryPack'; requestId?: string; payload: { packId: string } }
   | { type: 'room.importCards'; requestId?: string; payload: { packId: string; cardIds: string[] } }
   | { type: 'room.importRoomBackup'; requestId?: string; payload: { backup: DhRoomBackup } }
+  | { type: 'tracker.importCharacter'; requestId?: string; payload: { fileName: string; sheet: ResourceTrackerSheet } }
+  | { type: 'tracker.updateSheet'; requestId?: string; payload: { columnId: string; sheet: ResourceTrackerSheet } }
+  | { type: 'tracker.updateResource'; requestId?: string; payload: { columnId: string; resourceKey: ResourceTrackerResourceKey; nextValue: number | boolean[] } }
+  | { type: 'tracker.updateFear'; requestId?: string; payload: { value: number } }
+  | { type: 'tracker.moveColumn'; requestId?: string; payload: { columnId: string; direction: 'left' | 'right' } }
+  | { type: 'tracker.approveResourceChange'; requestId?: string; payload: { requestIdToResolve: string } }
+  | { type: 'tracker.rejectResourceChange'; requestId?: string; payload: { requestIdToResolve: string } }
   | { type: 'turn.end'; requestId?: string; payload?: Record<string, never> }
   | { type: 'turn.forceSkip'; requestId?: string; payload: { playerId: string } }
   | { type: 'card.draw'; requestId?: string; payload?: Record<string, never> }
@@ -41,6 +59,7 @@ export type ServerMessage =
 export interface CreateRoomRequest {
   room_name: string
   nickname: string
+  room_type?: RoomType
   selected_built_in_pack_ids?: string[]
   selected_pack_ids?: string[]
 }

@@ -3,6 +3,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { MapCanvas } from '@/components/map/MapCanvas'
 import { HandArea } from '@/components/panels/HandArea'
 import { PlayerPanel } from '@/components/panels/PlayerPanel'
+import { ResourceTrackerBoard } from '@/components/resource/ResourceTrackerBoard'
 import { CardLibraryModal } from '@/components/ui/CardLibraryModal'
 import { ConnectionModal } from '@/components/ui/ConnectionModal'
 import { CreateCardModal } from '@/components/ui/CreateCardModal'
@@ -84,6 +85,7 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
   }
 
   const showReconnectBanner = connectionStatus === 'reconnecting' || connectionStatus === 'error'
+  const isResourceTracker = room.room_type === 'resource-tracker'
 
   function handleTurnStartDraw() {
     setIsTurnStartModalOpen(false)
@@ -139,25 +141,33 @@ export function RoomPage({ onLeaveRoom }: RoomPageProps) {
       )}
 
       <div style={{ position: 'absolute', inset: 0, top: showReconnectBanner ? 92 : 52 }}>
-        <MapCanvas />
+        {isResourceTracker ? <ResourceTrackerBoard /> : <MapCanvas />}
       </div>
 
-      <PlayerPanel />
-      <HandArea />
+      {!isResourceTracker && (
+        <>
+          <PlayerPanel />
+          <HandArea />
 
-      <DrawModal />
-      <TurnStartModal
-        open={isTurnStartModalOpen}
-        onClose={() => setIsTurnStartModalOpen(false)}
-        onDraw={handleTurnStartDraw}
-      />
-      <CreateCardModal />
-      <EditCardModal />
-      <ConnectionModal />
-      <EndCoCreationConfirm />
+          <DrawModal />
+          <TurnStartModal
+            open={isTurnStartModalOpen}
+            onClose={() => setIsTurnStartModalOpen(false)}
+            onDraw={handleTurnStartDraw}
+          />
+          <CreateCardModal />
+          <EditCardModal />
+          <ConnectionModal />
+          <EndCoCreationConfirm />
+        </>
+      )}
       <RoomSettingsModal />
-      <ImportModal />
-      <CardLibraryModal />
+      {!isResourceTracker && (
+        <>
+          <ImportModal />
+          <CardLibraryModal />
+        </>
+      )}
 
       <ToastContainer />
     </div>

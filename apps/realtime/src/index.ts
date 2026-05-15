@@ -21,9 +21,16 @@ import {
   type DhRoomBackup,
   type MapCard,
   type Player,
+  type ResourceTrackerActivityLogItem,
+  type ResourceTrackerCharacterColumn,
+  type ResourceTrackerResourceChangeRequest,
+  type ResourceTrackerResourceKey,
+  type ResourceTrackerSheet,
+  type ResourceTrackerState,
   type RoleCardDetails,
   type RoomPackLibraryItem,
   type RoomState,
+  type RoomType,
 } from '../../../packages/shared/src/index'
 
 export interface Env {
@@ -99,11 +106,13 @@ async function createRoom(request: Request, env: Env): Promise<Response> {
   const body = await request.json() as {
     room_name?: string
     nickname?: string
+    room_type?: RoomType
     selected_built_in_pack_ids?: string[]
     selected_pack_ids?: string[]
   }
   const roomName = cleanText(body.room_name, 'Untitled Room', 60)
   const nickname = cleanText(body.nickname, '', 24)
+  const roomType: RoomType = body.room_type === 'resource-tracker' ? 'resource-tracker' : 'co-creation'
   if (!nickname) return json({ error: 'nickname_required' }, { status: 400 })
 
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -117,6 +126,7 @@ async function createRoom(request: Request, env: Env): Promise<Response> {
         inviteCode,
         playerId,
         nickname,
+        roomType,
         selectedPackIds: body.selected_built_in_pack_ids ?? body.selected_pack_ids ?? [],
       }),
     }))
@@ -228,15 +238,22 @@ export class RoomDurableObject {
       inviteCode: string
       playerId: string
       nickname: string
+      roomType?: RoomType
       selectedPackIds: string[]
     }
 
     const now = new Date()
     const host = makePlayer(body.playerId, body.nickname, PLAYER_COLORS[0], true, now)
-    const selectedPackIds = normalizeBuiltInPackSelection(body.selectedPackIds, true)
-    const deck = shuffle(createDeckFromBuiltInPackIds(selectedPackIds))
+    const roomType: RoomType = body.roomType === 'resource-tracker' ? 'resource-tracker' : 'co-creation'
+    const selectedPackIds = roomType === 'resource-tracker'
+      ? []
+      : normalizeBuiltInPackSelection(body.selectedPackIds, true)
+    const deck = roomType === 'resource-tracker'
+      ? []
+      : shuffle(createDeckFromBuiltInPackIds(selectedPackIds))
 
     this.room = {
+      room_type: roomType,
       room_id: body.inviteCode,
       room_name: body.roomName,
       invite_code: body.inviteCode,
@@ -255,9 +272,11 @@ export class RoomDurableObject {
       imported_pack_library: [],
       settings: {
         imports_enabled: true,
+        resource_change_requires_approval: false,
       },
       selected_built_in_pack_ids: selectedPackIds,
       drawn_this_turn: {},
+      resource_tracker: roomType === 'resource-tracker' ? createEmptyResourceTrackerState() : undefined,
       snapshot_version: 0,
       updated_at: now.toISOString(),
     }
@@ -392,8 +411,54 @@ export class RoomDurableObject {
 
       case 'room.updateSettings':
         this.requireHost(player)
-        this.updateSettings(message.payload.importsEnabled)
+        this.updateSettings(message.payload)
         await this.commit('room.updateSettings')
+        return
+
+      case 'tracker.importCharacter':
+        this.requireResourceTrackerRoom()
+        this.importTrackerCharacter(player, message.payload.fileName, message.payload.sheet)
+        await this.commit('tracker.importCharacter')
+        return
+
+      case 'tracker.updateSheet':
+        this.requireResourceTrackerRoom()
+        this.updateTrackerSheet(player, message.payload.columnId, message.payload.sheet)
+        await this.commit('tracker.updateSheet')
+        return
+
+      case 'tracker.updateResource':
+        this.requireResourceTrackerRoom()
+        this.updateTrackerResource(player, message.payload.columnId, message.payload.resourceKey, message.payload.nextValue)
+        await this.commit('tracker.updateResource')
+        return
+
+      case 'tracker.updateFear':
+        this.requireResourceTrackerRoom()
+        this.requireHost(player)
+        this.updateTrackerFear(player, message.payload.value)
+        await this.commit('tracker.updateFear')
+        return
+
+      case 'tracker.moveColumn':
+        this.requireResourceTrackerRoom()
+        this.requireHost(player)
+        this.moveTrackerColumn(player, message.payload.columnId, message.payload.direction)
+        await this.commit('tracker.moveColumn')
+        return
+
+      case 'tracker.approveResourceChange':
+        this.requireResourceTrackerRoom()
+        this.requireHost(player)
+        this.resolveTrackerRequest(player, message.payload.requestIdToResolve, true)
+        await this.commit('tracker.approveResourceChange')
+        return
+
+      case 'tracker.rejectResourceChange':
+        this.requireResourceTrackerRoom()
+        this.requireHost(player)
+        this.resolveTrackerRequest(player, message.payload.requestIdToResolve, false)
+        await this.commit('tracker.rejectResourceChange')
         return
 
       case 'turn.end':
@@ -818,11 +883,172 @@ export class RoomDurableObject {
     this.rebuildDeckFromSelectedPacks(selectedBuiltInPackIds)
   }
 
-  private updateSettings(importsEnabled: boolean): void {
+  private updateSettings(updates: { importsEnabled?: boolean; resourceChangeRequiresApproval?: boolean }): void {
     const room = this.requireRoom()
     room.settings = {
       ...room.settings,
-      imports_enabled: importsEnabled,
+      ...(updates.importsEnabled !== undefined ? { imports_enabled: updates.importsEnabled } : {}),
+      ...(updates.resourceChangeRequiresApproval !== undefined
+        ? { resource_change_requires_approval: updates.resourceChangeRequiresApproval }
+        : {}),
+    }
+  }
+
+  private importTrackerCharacter(player: Player, fileName: string, sheet: ResourceTrackerSheet): void {
+    const tracker = this.requireResourceTrackerState()
+    const now = new Date().toISOString()
+    const normalizedSheet = normalizeResourceTrackerSheet(sheet, fileName)
+    const existing = tracker.columns.find((column) => column.owner_player_id === player.id)
+
+    if (existing) {
+      existing.sheet = normalizedSheet
+      existing.updated_at = now
+      this.appendTrackerLog('sheet-change', `${player.nickname} 重新导入了角色卡`, player)
+      return
+    }
+
+    const column: ResourceTrackerCharacterColumn = {
+      id: id('tracker_col'),
+      owner_player_id: player.id,
+      imported_at: now,
+      updated_at: now,
+      sheet: normalizedSheet,
+    }
+
+    tracker.columns.push(column)
+    tracker.column_order.push(column.id)
+    this.appendTrackerLog('sheet-change', `${player.nickname} 导入了角色卡 ${normalizedSheet.character_name || normalizedSheet.file_name}`, player)
+  }
+
+  private updateTrackerSheet(player: Player, columnId: string, sheet: ResourceTrackerSheet): void {
+    const column = this.requireTrackerColumn(columnId)
+    this.requireTrackerColumnWritePermission(player, column)
+    column.sheet = normalizeResourceTrackerSheet(sheet, sheet.file_name)
+    column.updated_at = new Date().toISOString()
+    this.appendTrackerLog('sheet-change', `${player.nickname} 更新了 ${column.sheet.character_name} 的详细信息`, player)
+  }
+
+  private updateTrackerResource(
+    player: Player,
+    columnId: string,
+    resourceKey: ResourceTrackerResourceKey,
+    nextValue: number | boolean[],
+  ): void {
+    const tracker = this.requireResourceTrackerState()
+    const column = this.requireTrackerColumn(columnId)
+    const isHost = player.id === this.requireRoom().host_player_id
+    const isOwner = column.owner_player_id === player.id
+
+    if (!isHost && !isOwner) {
+      throw new Error('Only the owner or GM can change this resource')
+    }
+
+    const currentValue = cloneTrackerResourceValue(getTrackerResourceValue(column.sheet, resourceKey))
+    const normalizedValue = normalizeTrackerResourceValue(column.sheet, resourceKey, nextValue)
+
+    if (isTrackerResourceValueEqual(currentValue, normalizedValue)) {
+      return
+    }
+
+    if (!isHost && this.requireRoom().settings.resource_change_requires_approval) {
+      tracker.pending_resource_requests.push({
+        id: id('tracker_req'),
+        column_id: column.id,
+        owner_player_id: column.owner_player_id,
+        requested_by_player_id: player.id,
+        requested_by_name: player.nickname,
+        resource_key: resourceKey,
+        current_value: currentValue,
+        next_value: cloneTrackerResourceValue(normalizedValue),
+        created_at: new Date().toISOString(),
+        status: 'pending',
+      })
+      this.appendTrackerLog(
+        'approval',
+        `${player.nickname} 申请将 ${column.sheet.character_name} 的${getTrackerResourceLabel(resourceKey)}从 ${formatTrackerResourceValue(currentValue)} 调整为 ${formatTrackerResourceValue(normalizedValue)}`,
+        player,
+      )
+      return
+    }
+
+    setTrackerResourceValue(column.sheet, resourceKey, normalizedValue)
+    column.updated_at = new Date().toISOString()
+    this.appendTrackerLog(
+      'resource-change',
+      `${player.nickname} 将 ${column.sheet.character_name} 的${getTrackerResourceLabel(resourceKey)}从 ${formatTrackerResourceValue(currentValue)} 调整为 ${formatTrackerResourceValue(normalizedValue)}`,
+      player,
+    )
+  }
+
+  private updateTrackerFear(player: Player, value: number): void {
+    const tracker = this.requireResourceTrackerState()
+    const previous = tracker.fear.value
+    tracker.fear.value = clamp(Math.round(finiteNumber(value, previous)), 0, tracker.fear.max)
+    if (previous !== tracker.fear.value) {
+      this.appendTrackerLog('resource-change', `${player.nickname} 将恐惧点从 ${previous} 调整为 ${tracker.fear.value}`, player)
+    }
+  }
+
+  private moveTrackerColumn(player: Player, columnId: string, direction: 'left' | 'right'): void {
+    const tracker = this.requireResourceTrackerState()
+    const currentIndex = tracker.column_order.indexOf(columnId)
+    if (currentIndex < 0) throw new Error('Unknown character column')
+
+    const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1
+    if (targetIndex < 0 || targetIndex >= tracker.column_order.length) return
+
+    const [column] = tracker.column_order.splice(currentIndex, 1)
+    tracker.column_order.splice(targetIndex, 0, column)
+
+    const movedColumn = this.requireTrackerColumn(columnId)
+    this.appendTrackerLog('system', `${player.nickname} 调整了 ${movedColumn.sheet.character_name} 的列位置`, player)
+  }
+
+  private resolveTrackerRequest(player: Player, requestIdToResolve: string, approved: boolean): void {
+    const tracker = this.requireResourceTrackerState()
+    const requestIndex = tracker.pending_resource_requests.findIndex((request) => request.id === requestIdToResolve)
+    if (requestIndex < 0) throw new Error('Unknown resource change request')
+
+    const request = tracker.pending_resource_requests[requestIndex]
+    tracker.pending_resource_requests.splice(requestIndex, 1)
+
+    const column = this.requireTrackerColumn(request.column_id)
+    if (approved) {
+      const normalizedValue = normalizeTrackerResourceValue(column.sheet, request.resource_key, request.next_value)
+      setTrackerResourceValue(column.sheet, request.resource_key, normalizedValue)
+      column.updated_at = new Date().toISOString()
+      this.appendTrackerLog(
+        'approval',
+        `${player.nickname} 批准了 ${request.requested_by_name} 对 ${column.sheet.character_name} 的${getTrackerResourceLabel(request.resource_key)}修改：${formatTrackerResourceValue(request.current_value)} -> ${formatTrackerResourceValue(normalizedValue)}`,
+        player,
+      )
+      return
+    }
+
+    this.appendTrackerLog(
+      'approval',
+      `${player.nickname} 拒绝了 ${request.requested_by_name} 对 ${column.sheet.character_name} 的${getTrackerResourceLabel(request.resource_key)}修改申请`,
+      player,
+    )
+  }
+
+  private appendTrackerLog(
+    kind: ResourceTrackerActivityLogItem['kind'],
+    message: string,
+    actor?: Player,
+  ): void {
+    const tracker = this.requireResourceTrackerState()
+    tracker.activity_log.push({
+      id: id('tracker_log'),
+      created_at: new Date().toISOString(),
+      actor_player_id: actor?.id,
+      actor_name: actor?.nickname ?? '系统',
+      kind,
+      message,
+    })
+
+    if (tracker.activity_log.length > 120) {
+      tracker.activity_log = tracker.activity_log.slice(-120)
     }
   }
 
@@ -1045,6 +1271,7 @@ export class RoomDurableObject {
       room: {
         id: room.room_id,
         name: room.room_name,
+        room_type: room.room_type,
         invite_code: room.invite_code,
         created_at: room.created_at,
         expires_at: room.expires_at,
@@ -1072,6 +1299,7 @@ export class RoomDurableObject {
         selected_built_in_pack_ids: room.selected_built_in_pack_ids,
       },
       settings: room.settings,
+      resource_tracker: room.resource_tracker,
       players: room.players.map(player => ({
         id: player.id,
         nickname: player.nickname,
@@ -1159,10 +1387,12 @@ export class RoomDurableObject {
 
   private migrateRoomState(room: RoomState): RoomState {
     const migrated = room as RoomState & {
+      room_type?: RoomType
+      resource_tracker?: ResourceTrackerState
       imported_pack_library?: RoomPackLibraryItem[]
       selected_built_in_pack_ids?: string[]
       pack_library?: RoomPackLibraryItem[]
-      settings?: { imports_enabled?: boolean }
+      settings?: { imports_enabled?: boolean; resource_change_requires_approval?: boolean }
       selected_pack_ids?: string[]
     }
     const importedPackLibrary = normalizeImportedPackLibrary(
@@ -1189,7 +1419,12 @@ export class RoomDurableObject {
       map_cards: room.map_cards.map((card) => normalizeStoredCard(card) as MapCard),
       settings: {
         imports_enabled: migrated.settings?.imports_enabled ?? true,
+        resource_change_requires_approval: migrated.settings?.resource_change_requires_approval ?? false,
       },
+      room_type: migrated.room_type ?? 'co-creation',
+      resource_tracker: (migrated.room_type ?? 'co-creation') === 'resource-tracker'
+        ? normalizeResourceTrackerState(migrated.resource_tracker)
+        : undefined,
       imported_pack_library: importedPackLibrary.map((pack) => ({
         ...pack,
         source: 'imported',
@@ -1231,6 +1466,36 @@ export class RoomDurableObject {
 
   private requireHost(player: Player): void {
     if (player.id !== this.requireRoom().host_player_id) throw new Error('Host permission required')
+  }
+
+  private requireResourceTrackerRoom(): void {
+    if (this.requireRoom().room_type !== 'resource-tracker') {
+      throw new Error('Resource tracker room required')
+    }
+  }
+
+  private requireResourceTrackerState(): ResourceTrackerState {
+    const room = this.requireRoom()
+    if (room.room_type !== 'resource-tracker') {
+      throw new Error('Resource tracker room required')
+    }
+    room.resource_tracker ??= createEmptyResourceTrackerState()
+    return room.resource_tracker
+  }
+
+  private requireTrackerColumn(columnId: string): ResourceTrackerCharacterColumn {
+    const tracker = this.requireResourceTrackerState()
+    const column = tracker.columns.find((item) => item.id === columnId)
+    if (!column) throw new Error('Unknown character column')
+    return column
+  }
+
+  private requireTrackerColumnWritePermission(player: Player, column: ResourceTrackerCharacterColumn): void {
+    const room = this.requireRoom()
+    if (player.id === room.host_player_id) return
+    if (player.id !== column.owner_player_id) {
+      throw new Error('Only the owner or GM can edit this character')
+    }
   }
 
   private requireImportsEnabled(): void {
@@ -1358,6 +1623,224 @@ function makePlayer(idValue: string, nickname: string, color: string, isHost: bo
   }
 }
 
+function createEmptyResourceTrackerState(): ResourceTrackerState {
+  return {
+    fear: {
+      value: 0,
+      max: 12,
+    },
+    columns: [],
+    column_order: [],
+    pending_resource_requests: [],
+    activity_log: [],
+  }
+}
+
+function normalizeResourceTrackerState(value: ResourceTrackerState | undefined): ResourceTrackerState {
+  if (!value) return createEmptyResourceTrackerState()
+
+  return {
+    fear: {
+      value: clamp(Math.round(finiteNumber(value.fear?.value, 0)), 0, 12),
+      max: 12,
+    },
+    columns: Array.isArray(value.columns)
+      ? value.columns.map((column) => ({
+        ...column,
+        sheet: normalizeResourceTrackerSheet(column.sheet, column.sheet?.file_name),
+      }))
+      : [],
+    column_order: Array.isArray(value.column_order) ? value.column_order.filter((item) => typeof item === 'string') : [],
+    pending_resource_requests: Array.isArray(value.pending_resource_requests) ? value.pending_resource_requests : [],
+    activity_log: Array.isArray(value.activity_log) ? value.activity_log.slice(-120) : [],
+  }
+}
+
+function normalizeResourceTrackerSheet(sheet: ResourceTrackerSheet, fileName: string): ResourceTrackerSheet {
+  const normalizedFileName = cleanText(fileName || sheet.file_name, '角色卡.json', 120)
+  const normalizedExperiences = Array.isArray(sheet.narrative?.experiences)
+    ? sheet.narrative.experiences.slice(0, 5).map((item) => ({
+      name: cleanText(item?.name, '', 60),
+      value: cleanText(item?.value, '', 10),
+    }))
+    : []
+
+  while (normalizedExperiences.length < 5) {
+    normalizedExperiences.push({ name: '', value: '' })
+  }
+
+  return {
+    file_name: normalizedFileName,
+    character_name: cleanText(sheet.character_name, '未命名角色', 60),
+    summary_line: cleanText(sheet.summary_line, '', 180),
+    identity: {
+      level: cleanText(sheet.identity?.level, '', 10),
+      ancestry: cleanText(sheet.identity?.ancestry, '', 80),
+      profession: cleanText(sheet.identity?.profession, '', 80),
+      community: cleanText(sheet.identity?.community, '', 80),
+      subclass: cleanText(sheet.identity?.subclass, '', 80),
+      primary_trait: cleanText(sheet.identity?.primary_trait, '', 40),
+    },
+    stats: {
+      evasion: cleanText(sheet.stats?.evasion, '', 20),
+      armor_value: cleanText(sheet.stats?.armor_value, '', 20),
+      minor_threshold: cleanText(sheet.stats?.minor_threshold, '', 20),
+      major_threshold: cleanText(sheet.stats?.major_threshold, '', 20),
+      attributes: {
+        agility: cleanText(sheet.stats?.attributes?.agility, '', 10),
+        strength: cleanText(sheet.stats?.attributes?.strength, '', 10),
+        finesse: cleanText(sheet.stats?.attributes?.finesse, '', 10),
+        instinct: cleanText(sheet.stats?.attributes?.instinct, '', 10),
+        presence: cleanText(sheet.stats?.attributes?.presence, '', 10),
+        knowledge: cleanText(sheet.stats?.attributes?.knowledge, '', 10),
+      },
+    },
+    resources: {
+      hope: clamp(Math.round(finiteNumber(sheet.resources?.hope, 0)), 0, clamp(Math.round(finiteNumber(sheet.resources?.hope_max, 6)), 0, 12)),
+      hope_max: clamp(Math.round(finiteNumber(sheet.resources?.hope_max, 6)), 0, 12),
+      proficiency: normalizeBooleanTrack(sheet.resources?.proficiency, 6),
+      hp: normalizeBooleanTrack(sheet.resources?.hp, clamp(Math.round(finiteNumber(sheet.resources?.hp_max, 7)), 0, 20)),
+      hp_max: clamp(Math.round(finiteNumber(sheet.resources?.hp_max, 7)), 0, 20),
+      stress: normalizeBooleanTrack(sheet.resources?.stress, clamp(Math.round(finiteNumber(sheet.resources?.stress_max, 6)), 0, 20)),
+      stress_max: clamp(Math.round(finiteNumber(sheet.resources?.stress_max, 6)), 0, 20),
+      armor_slots: normalizeBooleanTrack(sheet.resources?.armor_slots, clamp(Math.round(finiteNumber(sheet.resources?.armor_max, 5)), 0, 12)),
+      armor_max: clamp(Math.round(finiteNumber(sheet.resources?.armor_max, 5)), 0, 12),
+      gold: normalizeBooleanTrack(sheet.resources?.gold, 21),
+    },
+    equipment: {
+      armor_name: cleanText(sheet.equipment?.armor_name, '', 80),
+      armor_base_score: cleanText(sheet.equipment?.armor_base_score, '', 80),
+      armor_threshold: cleanText(sheet.equipment?.armor_threshold, '', 80),
+      armor_feature: cleanText(sheet.equipment?.armor_feature, '', 160),
+      primary_weapon_name: cleanText(sheet.equipment?.primary_weapon_name, '', 80),
+      primary_weapon_trait: cleanText(sheet.equipment?.primary_weapon_trait, '', 120),
+      primary_weapon_damage: cleanText(sheet.equipment?.primary_weapon_damage, '', 120),
+      primary_weapon_feature: cleanText(sheet.equipment?.primary_weapon_feature, '', 160),
+      secondary_weapon_name: cleanText(sheet.equipment?.secondary_weapon_name, '', 80),
+      secondary_weapon_trait: cleanText(sheet.equipment?.secondary_weapon_trait, '', 120),
+      secondary_weapon_damage: cleanText(sheet.equipment?.secondary_weapon_damage, '', 120),
+      secondary_weapon_feature: cleanText(sheet.equipment?.secondary_weapon_feature, '', 160),
+    },
+    narrative: {
+      background: cleanText(sheet.narrative?.background, '', 2000),
+      appearance: cleanText(sheet.narrative?.appearance, '', 2000),
+      motivation: cleanText(sheet.narrative?.motivation, '', 500),
+      notes: cleanText(sheet.narrative?.notes, '', 4000),
+      experiences: normalizedExperiences,
+    },
+  }
+}
+
+function normalizeBooleanTrack(value: unknown, maxLength: number): boolean[] {
+  const normalizedLength = Math.max(0, maxLength)
+  const source = Array.isArray(value) ? value : []
+  return Array.from({ length: normalizedLength }, (_, index) => Boolean(source[index]))
+}
+
+function cloneTrackerResourceValue(value: number | boolean[]): number | boolean[] {
+  return Array.isArray(value) ? [...value] : value
+}
+
+function getTrackerResourceValue(sheet: ResourceTrackerSheet, resourceKey: ResourceTrackerResourceKey): number | boolean[] {
+  switch (resourceKey) {
+    case 'hope':
+      return sheet.resources.hope
+    case 'proficiency':
+      return [...sheet.resources.proficiency]
+    case 'hp':
+      return [...sheet.resources.hp]
+    case 'stress':
+      return [...sheet.resources.stress]
+    case 'armor_slots':
+      return [...sheet.resources.armor_slots]
+    case 'gold':
+      return [...sheet.resources.gold]
+  }
+}
+
+function setTrackerResourceValue(sheet: ResourceTrackerSheet, resourceKey: ResourceTrackerResourceKey, nextValue: number | boolean[]): void {
+  switch (resourceKey) {
+    case 'hope':
+      sheet.resources.hope = nextValue as number
+      return
+    case 'proficiency':
+      sheet.resources.proficiency = [...(nextValue as boolean[])]
+      return
+    case 'hp':
+      sheet.resources.hp = [...(nextValue as boolean[])]
+      return
+    case 'stress':
+      sheet.resources.stress = [...(nextValue as boolean[])]
+      return
+    case 'armor_slots':
+      sheet.resources.armor_slots = [...(nextValue as boolean[])]
+      return
+    case 'gold':
+      sheet.resources.gold = [...(nextValue as boolean[])]
+      return
+  }
+}
+
+function normalizeTrackerResourceValue(
+  sheet: ResourceTrackerSheet,
+  resourceKey: ResourceTrackerResourceKey,
+  nextValue: number | boolean[],
+): number | boolean[] {
+  switch (resourceKey) {
+    case 'hope':
+      return clamp(Math.round(finiteNumber(nextValue, sheet.resources.hope)), 0, sheet.resources.hope_max)
+    case 'proficiency':
+      return normalizeBooleanTrack(nextValue, sheet.resources.proficiency.length)
+    case 'hp':
+      return normalizeBooleanTrack(nextValue, sheet.resources.hp_max)
+    case 'stress':
+      return normalizeBooleanTrack(nextValue, sheet.resources.stress_max)
+    case 'armor_slots':
+      return normalizeBooleanTrack(nextValue, sheet.resources.armor_max)
+    case 'gold':
+      return normalizeBooleanTrack(nextValue, sheet.resources.gold.length)
+  }
+}
+
+function isTrackerResourceValueEqual(left: number | boolean[], right: number | boolean[]): boolean {
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length) return false
+    return left.every((item, index) => item === right[index])
+  }
+
+  return left === right
+}
+
+function getTrackerResourceLabel(resourceKey: ResourceTrackerResourceKey): string {
+  switch (resourceKey) {
+    case 'hope':
+      return '希望点'
+    case 'proficiency':
+      return '熟练'
+    case 'hp':
+      return '生命点'
+    case 'stress':
+      return '压力点'
+    case 'armor_slots':
+      return '护甲槽'
+    case 'gold':
+      return '金币'
+  }
+}
+
+function formatTrackerResourceValue(value: number | boolean[]): string {
+  if (Array.isArray(value)) {
+    if (value.length === 21) {
+      const hand = value.slice(0, 10).filter(Boolean).length
+      const bag = value.slice(10, 20).filter(Boolean).length
+      const chest = value[20] ? 1 : 0
+      return `把 ${hand}/10，袋 ${bag}/10，箱 ${chest}/1`
+    }
+    return `${value.filter(Boolean).length}/${value.length}`
+  }
+  return String(value)
+}
+
 function roomStub(env: Env, inviteCode: string): DurableObjectStub {
   return env.ROOMS.get(env.ROOMS.idFromName(inviteCode))
 }
@@ -1415,8 +1898,8 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
-function finiteNumber(value: number, fallback: number): number {
-  return Number.isFinite(value) ? value : fallback
+function finiteNumber(value: unknown, fallback: number): number {
+  return Number.isFinite(value) ? Number(value) : fallback
 }
 
 function getSessionSecret(env: Env): string {

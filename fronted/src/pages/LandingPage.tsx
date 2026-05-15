@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { useStore } from '@/store/useStore'
-import { AlertTriangle, LogIn, Plus, BookOpen } from 'lucide-react'
+import type { RoomType } from '@dhgc/shared'
+import { AlertTriangle, BookOpen, LogIn, Plus } from 'lucide-react'
 import { TutorialModal } from '@/components/ui/TutorialModal'
+import { useStore } from '@/store/useStore'
 
 interface LandingPageProps {
   onEnterRoom: () => void
@@ -13,6 +14,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
   const [roomName, setRoomName] = useState('')
   const [nickname, setNickname] = useState('')
   const [inviteCode, setInviteCode] = useState('')
+  const [roomType, setRoomType] = useState<RoomType>('co-creation')
   const [showTutorial, setShowTutorial] = useState(false)
 
   async function handleCreate(event: React.FormEvent) {
@@ -26,6 +28,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
     const entered = await createRoom({
       nickname,
       roomName,
+      roomType,
     })
 
     if (entered) onEnterRoom()
@@ -92,7 +95,6 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
         }}
       />
 
-      {/* Tutorial button — top right */}
       <button
         onClick={() => setShowTutorial(true)}
         style={{
@@ -117,18 +119,6 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
           transition: 'all 180ms cubic-bezier(0.4,0,0.2,1)',
           boxShadow: '0 2px 8px rgba(37,99,235,0.12)',
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.20), rgba(124,58,237,0.16))'
-          e.currentTarget.style.transform = 'translateY(-1px)'
-          e.currentTarget.style.boxShadow = '0 6px 16px rgba(37,99,235,0.22)'
-          e.currentTarget.style.borderColor = 'rgba(37,99,235,0.50)'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(124,58,237,0.10))'
-          e.currentTarget.style.transform = ''
-          e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.12)'
-          e.currentTarget.style.borderColor = 'rgba(37,99,235,0.30)'
-        }}
       >
         <BookOpen size={15} />
         使用教程
@@ -136,7 +126,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
 
       {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
 
-      <div style={{ width: '100%', maxWidth: 440, padding: '0 20px', position: 'relative', zIndex: 1 }}>
+      <div style={{ width: '100%', maxWidth: 460, padding: '0 20px', position: 'relative', zIndex: 1 }}>
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
           <div
             style={{
@@ -160,7 +150,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
             匕首之心
           </h1>
           <p style={{ fontSize: 15, color: 'var(--text-secondary)', letterSpacing: '0.01em', fontWeight: 500 }}>
-            团前共创工具 · 多人卡牌地图协作
+            团前共创工具 · 多人白板与角色资源协作
           </p>
         </div>
 
@@ -205,6 +195,39 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
               </div>
 
               <div style={{ marginBottom: 18 }}>
+                <label className="label">房间类型</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {([
+                    { id: 'co-creation' as const, title: '共创房间', desc: '多人卡牌白板共创' },
+                    { id: 'resource-tracker' as const, title: '追踪资源', desc: 'GM 追踪角色资源与数值' },
+                  ]).map((item) => {
+                    const active = roomType === item.id
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setRoomType(item.id)}
+                        disabled={isEnteringRoom}
+                        style={{
+                          textAlign: 'left',
+                          padding: '12px 14px',
+                          border: active ? '1px solid var(--accent-violet)' : '1px solid var(--border-default)',
+                          background: active ? 'rgba(37,99,235,0.08)' : 'var(--bg-overlay)',
+                          color: 'var(--text-primary)',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{item.title}</div>
+                        <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          {item.desc}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
                 <label className="label">你的昵称</label>
                 <input
                   className="input"
@@ -233,7 +256,12 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
                 }}
               >
                 <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                <span>创建房间后默认启用全部内置卡包。房间适合临时共创，最多保留 3 天，到期会自动删除；建议每次完成后立即导出房间备份。</span>
+                <span>
+                  {roomType === 'co-creation'
+                    ? '创建后进入共创房间，适合临时多人卡牌白板协作。'
+                    : '创建后进入追踪资源房间，适合 GM 统一追踪角色资源、数值和审批。'}
+                  {' '}房间最多保留 3 天，到期会自动删除，建议及时导出备份。
+                </span>
               </div>
 
               <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} disabled={isEnteringRoom}>
@@ -277,7 +305,7 @@ export function LandingPage({ onEnterRoom }: LandingPageProps) {
         </div>
 
         <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: 'var(--text-muted)' }}>
-          基于《匕首之心》TRPG · 多人共创与地图协作
+          基于《匕首之心》TRPG · 多人共创与资源追踪协作
         </div>
       </div>
     </div>
