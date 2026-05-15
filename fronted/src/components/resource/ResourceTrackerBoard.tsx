@@ -376,13 +376,19 @@ function TrackerFearBar({
   const [draftName, setDraftName] = useState('')
   const [draftMax, setDraftMax] = useState('6')
   const [visibleStart, setVisibleStart] = useState(0)
-  const maxStart = Math.max(0, countdowns.length - 1)
-  const activeCountdown = countdowns[visibleStart] ?? null
-  const hasOverflow = countdowns.length > 1
+  const visibleCount = 6
+  const maxStart = Math.max(0, countdowns.length - visibleCount)
+  const visibleCountdowns = countdowns.slice(visibleStart, visibleStart + visibleCount)
+  const activeCountdown = visibleCountdowns[0] ?? null
+  const hasOverflow = countdowns.length > visibleCount
 
   useEffect(() => {
     setVisibleStart((current) => Math.min(current, maxStart))
   }, [maxStart])
+
+  useEffect(() => {
+    if (!editable) setShowCreator(false)
+  }, [editable])
 
   function submitCountdown() {
     const normalizedName = draftName.trim() || `倒计时 ${countdowns.length + 1}`
@@ -471,6 +477,7 @@ function TrackerFearBar({
               style={{
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'space-between',
                 gap: 12,
                 marginBottom: 14,
                 flexWrap: 'wrap',
@@ -478,6 +485,7 @@ function TrackerFearBar({
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#1f2937' }}>进度钟</div>
+                {editable && (
                 <button
                   type="button"
                   onClick={() => setShowCreator((current) => !current)}
@@ -496,6 +504,7 @@ function TrackerFearBar({
                 >
                   <Edit3 size={12} /> 管理
                 </button>
+                )}
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minHeight: 20 }}>
@@ -513,116 +522,147 @@ function TrackerFearBar({
                     </IconButton>
                   </>
                 )}
-                {countdowns.length > 1 && (
+                {countdowns.length > visibleCount && (
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af' }}>
-                    {visibleStart + 1} / {countdowns.length}
+                    {visibleStart + 1}-{Math.min(visibleStart + visibleCount, countdowns.length)} / {countdowns.length}
                   </div>
                 )}
               </div>
             </div>
 
-            {activeCountdown ? (
+            {visibleCountdowns.length > 0 ? (
               <div
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: 14,
-                  flexWrap: 'wrap',
-                  minWidth: 0,
+                  flexWrap: 'nowrap',
+                  gap: 10,
+                  alignItems: 'start',
                 }}
               >
-                <div
-                  style={{
-                    minWidth: 0,
-                    maxWidth: 220,
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: '#9ca3af',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                >
-                  {activeCountdown.name}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexWrap: 'wrap' }}>
-                  {Array.from({ length: activeCountdown.max }).map((_, index) => {
-                    const step = index + 1
-                    const filled = step <= activeCountdown.value
-                    const nextValue = activeCountdown.value === step ? step - 1 : step
-                    const showConnector = index < activeCountdown.max - 1
-                    const connectorFilled = step < activeCountdown.value
+                {visibleCountdowns.map((countdown) => (
+                  <div
+                    key={countdown.id}
+                    style={{
+                      width: 'fit-content',
+                      maxWidth: '100%',
+                      flex: '0 0 auto',
+                      padding: 12,
+                      borderRadius: 14,
+                      border: '1px solid rgba(245, 158, 11, 0.28)',
+                      background: 'linear-gradient(180deg, rgba(255,251,235,0.96), rgba(255,247,237,0.92))',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.75)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginBottom: 12,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 800,
+                          color: '#92400e',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {countdown.name}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: '#b45309' }}>
+                          {countdown.value}
+                          <span style={{ fontSize: 14, fontWeight: 800, color: '#d97706' }}> / {countdown.max}</span>
+                        </div>
+                        {editable && (
+                          <IconButton title="删除倒计时" onClick={() => onDeleteCountdown(countdown.id)}>
+                            <Trash2 size={14} />
+                          </IconButton>
+                        )}
+                      </div>
+                    </div>
 
-                    return editable ? (
-                      <div
-                        key={`${activeCountdown.id}-${step}`}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => onUpdateCountdown(activeCountdown.id, nextValue)}
-                          style={{
-                            width: 20,
-                            height: 20,
-                            borderRadius: 999,
-                            border: filled ? '2px solid rgba(251, 113, 133, 0.9)' : '2px solid rgba(209, 213, 219, 0.95)',
-                            background: filled ? 'radial-gradient(circle at 35% 35%, #fda4af, #fb7185 58%, #f43f5e)' : 'rgba(255,255,255,0.92)',
-                            boxShadow: filled ? '0 3px 10px rgba(244, 63, 94, 0.18)' : 'none',
-                            cursor: 'pointer',
-                          }}
-                        />
-                        {showConnector && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexWrap: 'wrap' }}>
+                      {Array.from({ length: countdown.max }).map((_, index) => {
+                        const step = index + 1
+                        const filled = step <= countdown.value
+                        const nextValue = countdown.value === step ? step - 1 : step
+                        const showConnector = index < countdown.max - 1
+                        const connectorFilled = step < countdown.value
+
+                        return editable ? (
                           <div
+                            key={`${countdown.id}-${step}`}
                             style={{
-                              width: 18,
-                              height: 2,
-                              marginInline: 2,
-                              borderRadius: 999,
-                              background: connectorFilled ? 'rgba(251, 113, 133, 0.75)' : 'rgba(209, 213, 219, 0.85)',
+                              display: 'flex',
+                              alignItems: 'center',
                             }}
-                          />
-                        )}
-                      </div>
-                    ) : (
-                      <div
-                        key={`${activeCountdown.id}-${step}`}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 20,
-                            height: 20,
-                            borderRadius: 999,
-                            border: filled ? '2px solid rgba(251, 113, 133, 0.9)' : '2px solid rgba(209, 213, 219, 0.95)',
-                            background: filled ? 'radial-gradient(circle at 35% 35%, #fda4af, #fb7185 58%, #f43f5e)' : 'rgba(255,255,255,0.92)',
-                            boxShadow: filled ? '0 3px 10px rgba(244, 63, 94, 0.18)' : 'none',
-                          }}
-                        />
-                        {showConnector && (
+                          >
+                            <button
+                              type="button"
+                              onClick={() => onUpdateCountdown(countdown.id, nextValue)}
+                              style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: 999,
+                                border: filled ? '2px solid rgba(245, 158, 11, 0.92)' : '2px solid rgba(253, 230, 138, 0.95)',
+                                background: filled ? 'radial-gradient(circle at 35% 35%, #fde68a, #fbbf24 58%, #f59e0b)' : 'rgba(255,255,255,0.95)',
+                                boxShadow: filled ? '0 3px 8px rgba(245, 158, 11, 0.22)' : 'none',
+                                cursor: 'pointer',
+                              }}
+                            />
+                            {showConnector && (
+                              <div
+                                style={{
+                                  width: 12,
+                                  height: 2,
+                                  marginInline: 2,
+                                  borderRadius: 999,
+                                  background: connectorFilled ? 'rgba(245, 158, 11, 0.72)' : 'rgba(253, 230, 138, 0.9)',
+                                }}
+                              />
+                            )}
+                          </div>
+                        ) : (
                           <div
+                            key={`${countdown.id}-${step}`}
                             style={{
-                              width: 18,
-                              height: 2,
-                              marginInline: 2,
-                              borderRadius: 999,
-                              background: connectorFilled ? 'rgba(251, 113, 133, 0.75)' : 'rgba(209, 213, 219, 0.85)',
+                              display: 'flex',
+                              alignItems: 'center',
                             }}
-                          />
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-                <div style={{ fontSize: 28, fontWeight: 900, color: '#374151' }}>
-                  {activeCountdown.value}
-                  <span style={{ fontSize: 18, fontWeight: 800, color: '#4b5563' }}> / {activeCountdown.max}</span>
-                </div>
+                          >
+                            <div
+                              style={{
+                                width: 18,
+                                height: 18,
+                                borderRadius: 999,
+                                border: filled ? '2px solid rgba(245, 158, 11, 0.92)' : '2px solid rgba(253, 230, 138, 0.95)',
+                                background: filled ? 'radial-gradient(circle at 35% 35%, #fde68a, #fbbf24 58%, #f59e0b)' : 'rgba(255,255,255,0.95)',
+                                boxShadow: filled ? '0 3px 8px rgba(245, 158, 11, 0.22)' : 'none',
+                              }}
+                            />
+                            {showConnector && (
+                              <div
+                                style={{
+                                  width: 12,
+                                  height: 2,
+                                  marginInline: 2,
+                                  borderRadius: 999,
+                                  background: connectorFilled ? 'rgba(245, 158, 11, 0.72)' : 'rgba(253, 230, 138, 0.9)',
+                                }}
+                              />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div
@@ -684,8 +724,8 @@ function TrackerFearBar({
             marginBottom: 12,
             padding: 12,
             borderRadius: 16,
-            border: '1px solid rgba(251, 191, 36, 0.24)',
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,251,235,0.9))',
+            border: '1px solid rgba(251, 191, 36, 0.28)',
+            background: 'linear-gradient(180deg, rgba(255,251,235,0.94), rgba(255,247,237,0.96))',
           }}
         >
           <div
@@ -798,15 +838,13 @@ function TrackerFearBar({
               style={{
                 height: 36,
                 borderRadius: 10,
-                border: active ? '1px solid rgba(251, 113, 133, 0.3)' : '1px solid rgba(252, 165, 165, 0.18)',
-                background: active
-                  ? `linear-gradient(135deg, rgba(255, 214, 222, ${Math.min(0.92, opacity + 0.08)}), rgba(251, 113, 133, ${Math.min(0.88, opacity + 0.14)}))`
-                  : 'rgba(255,255,255,0.58)',
+                border: active ? '1px solid rgba(244, 63, 94, 0.28)' : '1px solid rgba(252, 165, 165, 0.18)',
+                background: active ? `rgba(244, 63, 94, ${Math.min(0.22 + index * 0.08, 0.74)})` : 'rgba(255,255,255,0.58)',
                 color: active ? 'white' : '#f43f5e',
                 fontSize: 13,
                 fontWeight: 800,
                 cursor: editable ? 'pointer' : 'default',
-                boxShadow: active ? 'inset 0 1px 0 rgba(255,255,255,0.28)' : 'none',
+                boxShadow: active ? 'inset 0 1px 0 rgba(255,255,255,0.22)' : 'none',
               }}
             >
               {step}
