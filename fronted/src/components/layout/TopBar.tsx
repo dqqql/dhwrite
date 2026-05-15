@@ -369,29 +369,31 @@ export function TopBar({ onLeaveRoom }: { onLeaveRoom: () => void }) {
         </>
       )}
 
-      <button
-        onClick={() => setShowTutorial(true)}
-        title="使用教程"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '5px 11px',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid rgba(37,99,235,0.28)',
-          background: 'linear-gradient(135deg, rgba(37,99,235,0.10), rgba(124,58,237,0.08))',
-          color: 'var(--accent-violet)',
-          cursor: 'pointer',
-          fontSize: 12,
-          fontWeight: 700,
-          fontFamily: 'inherit',
-          letterSpacing: '0.02em',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        <HelpCircle size={13} />
-        使用教程
-      </button>
+      {!isResourceTracker && (
+        <button
+          onClick={() => setShowTutorial(true)}
+          title="使用教程"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '5px 11px',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid rgba(37,99,235,0.28)',
+            background: 'linear-gradient(135deg, rgba(37,99,235,0.10), rgba(124,58,237,0.08))',
+            color: 'var(--accent-violet)',
+            cursor: 'pointer',
+            fontSize: 12,
+            fontWeight: 700,
+            fontFamily: 'inherit',
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <HelpCircle size={13} />
+          使用教程
+        </button>
+      )}
 
       <button className="btn btn-ghost btn-icon" onClick={openRoomSettings} title="房间设置">
         <Settings size={15} />
