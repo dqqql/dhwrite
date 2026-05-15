@@ -24,6 +24,9 @@ export type ClientMessage =
   | { type: 'tracker.updateSheet'; requestId?: string; payload: { columnId: string; sheet: ResourceTrackerSheet } }
   | { type: 'tracker.updateResource'; requestId?: string; payload: { columnId: string; resourceKey: ResourceTrackerResourceKey; nextValue: number | boolean[] } }
   | { type: 'tracker.updateFear'; requestId?: string; payload: { value: number } }
+  | { type: 'tracker.createCountdown'; requestId?: string; payload: { name: string; max: number } }
+  | { type: 'tracker.updateCountdown'; requestId?: string; payload: { countdownId: string; value: number } }
+  | { type: 'tracker.deleteCountdown'; requestId?: string; payload: { countdownId: string } }
   | { type: 'tracker.moveColumn'; requestId?: string; payload: { columnId: string; direction: 'left' | 'right' } }
   | { type: 'tracker.approveResourceChange'; requestId?: string; payload: { requestIdToResolve: string } }
   | { type: 'tracker.rejectResourceChange'; requestId?: string; payload: { requestIdToResolve: string } }

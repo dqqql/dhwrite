@@ -96,6 +96,9 @@ interface AppStore extends UIState {
   updateTrackerSheet: (columnId: string, sheet: ResourceTrackerSheet) => void
   updateTrackerResource: (columnId: string, resourceKey: ResourceTrackerResourceKey, nextValue: number | boolean[]) => void
   updateTrackerFear: (value: number) => void
+  createTrackerCountdown: (name: string, max: number) => void
+  updateTrackerCountdown: (countdownId: string, value: number) => void
+  deleteTrackerCountdown: (countdownId: string) => void
   moveTrackerColumn: (columnId: string, direction: 'left' | 'right') => void
   approveTrackerResourceRequest: (requestId: string) => void
   rejectTrackerResourceRequest: (requestId: string) => void
@@ -618,6 +621,27 @@ export const useStore = create<AppStore>((set, get) => {
       sendMessage({
         type: 'tracker.updateFear',
         payload: { value },
+      })
+    },
+
+    createTrackerCountdown: (name, max) => {
+      sendMessage({
+        type: 'tracker.createCountdown',
+        payload: { name, max },
+      })
+    },
+
+    updateTrackerCountdown: (countdownId, value) => {
+      sendMessage({
+        type: 'tracker.updateCountdown',
+        payload: { countdownId, value },
+      })
+    },
+
+    deleteTrackerCountdown: (countdownId) => {
+      sendMessage({
+        type: 'tracker.deleteCountdown',
+        payload: { countdownId },
       })
     },
 

@@ -193,6 +193,15 @@ export interface ResourceTrackerActivityLogItem {
   message: string
 }
 
+export interface ResourceTrackerCountdown {
+  id: string
+  name: string
+  value: number
+  max: number
+  created_at: string
+  updated_at: string
+}
+
 export interface ResourceTrackerResourceChangeRequest {
   id: string
   column_id: string
@@ -211,6 +220,7 @@ export interface ResourceTrackerState {
     value: number
     max: number
   }
+  countdowns: ResourceTrackerCountdown[]
   columns: ResourceTrackerCharacterColumn[]
   column_order: string[]
   pending_resource_requests: ResourceTrackerResourceChangeRequest[]

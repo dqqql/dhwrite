@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import type {
   ResourceTrackerCharacterColumn,
+  ResourceTrackerCountdown,
   ResourceTrackerResourceChangeRequest,
   ResourceTrackerResourceKey,
   ResourceTrackerSheet,
 } from '@dhgc/shared'
-import { Check, ChevronLeft, ChevronRight, Edit3, RotateCcw, Upload, X } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Edit3, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { useStore } from '@/store/useStore'
 import { buildTrackerSheetFromCharacterJson, cloneTrackerSheet, getTrackFilledCount } from '@/utils/resourceTracker'
@@ -30,6 +31,9 @@ export function ResourceTrackerBoard() {
     updateTrackerSheet,
     updateTrackerResource,
     updateTrackerFear,
+    createTrackerCountdown,
+    updateTrackerCountdown,
+    deleteTrackerCountdown,
     moveTrackerColumn,
     approveTrackerResourceRequest,
     rejectTrackerResourceRequest,
@@ -111,11 +115,15 @@ export function ResourceTrackerBoard() {
           boxSizing: 'border-box',
         }}
       >
-        <FearBar
+        <TrackerFearBar
           value={tracker.fear.value}
           max={tracker.fear.max}
+          countdowns={tracker.countdowns}
           editable={isHost}
           onChange={updateTrackerFear}
+          onCreateCountdown={createTrackerCountdown}
+          onUpdateCountdown={updateTrackerCountdown}
+          onDeleteCountdown={deleteTrackerCountdown}
         />
 
         {!isHost && !myColumn && (
@@ -334,6 +342,471 @@ function FearBar({
                 fontSize: 13,
                 fontWeight: 800,
                 cursor: editable ? 'pointer' : 'default',
+              }}
+            >
+              {step}
+            </button>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function TrackerFearBar({
+  value,
+  max,
+  countdowns,
+  editable,
+  onChange,
+  onCreateCountdown,
+  onUpdateCountdown,
+  onDeleteCountdown,
+}: {
+  value: number
+  max: number
+  countdowns: ResourceTrackerCountdown[]
+  editable: boolean
+  onChange: (value: number) => void
+  onCreateCountdown: (name: string, max: number) => void
+  onUpdateCountdown: (countdownId: string, value: number) => void
+  onDeleteCountdown: (countdownId: string) => void
+}) {
+  const [showCreator, setShowCreator] = useState(false)
+  const [draftName, setDraftName] = useState('')
+  const [draftMax, setDraftMax] = useState('6')
+  const [visibleStart, setVisibleStart] = useState(0)
+  const maxStart = Math.max(0, countdowns.length - 1)
+  const activeCountdown = countdowns[visibleStart] ?? null
+  const hasOverflow = countdowns.length > 1
+
+  useEffect(() => {
+    setVisibleStart((current) => Math.min(current, maxStart))
+  }, [maxStart])
+
+  function submitCountdown() {
+    const normalizedName = draftName.trim() || `倒计时 ${countdowns.length + 1}`
+    const parsedMax = Number.parseInt(draftMax, 10)
+    const normalizedMax = Number.isFinite(parsedMax) ? Math.min(12, Math.max(2, parsedMax)) : 6
+    onCreateCountdown(normalizedName, normalizedMax)
+    setDraftName('')
+    setDraftMax('6')
+    setShowCreator(false)
+  }
+
+  return (
+    <section
+      style={{
+        padding: 14,
+        borderRadius: 22,
+        border: '1px solid rgba(251, 146, 60, 0.18)',
+        background: 'linear-gradient(180deg, rgba(255,246,244,0.98), rgba(255,251,245,0.96))',
+        boxShadow: '0 18px 40px rgba(251, 113, 133, 0.08)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 14,
+          marginBottom: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            gap: 18,
+            alignItems: 'flex-start',
+            flex: '1 1 720px',
+            minWidth: 0,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div
+            style={{
+              width: 180,
+              maxWidth: '100%',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  background: '#e11d48',
+                  color: 'white',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  letterSpacing: '0.02em',
+                }}
+              >
+                GM 资源
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#e11d48' }}>恐惧点</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+              <span style={{ fontSize: 54, lineHeight: 0.95, fontWeight: 900, color: '#5b1021' }}>{value}</span>
+              <span style={{ fontSize: 18, fontWeight: 800, color: '#f43f5e' }}>/ {max}</span>
+            </div>
+            {editable && (
+              <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.45, color: '#fb7185' }}>
+                点击进度格可设置当前恐惧点。
+              </div>
+            )}
+          </div>
+
+          <div
+            style={{
+              flex: '1 1 420px',
+              minWidth: 280,
+              paddingTop: 4,
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                marginBottom: 14,
+                flexWrap: 'wrap',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#1f2937' }}>进度钟</div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreator((current) => !current)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: '#6b7280',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Edit3 size={12} /> 管理
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minHeight: 20 }}>
+                {hasOverflow && (
+                  <>
+                    <IconButton title="上一个倒计时" onClick={() => setVisibleStart((current) => Math.max(0, current - 1))} disabled={visibleStart === 0}>
+                      <ChevronLeft size={14} />
+                    </IconButton>
+                    <IconButton
+                      title="下一个倒计时"
+                      onClick={() => setVisibleStart((current) => Math.min(maxStart, current + 1))}
+                      disabled={visibleStart >= maxStart}
+                    >
+                      <ChevronRight size={14} />
+                    </IconButton>
+                  </>
+                )}
+                {countdowns.length > 1 && (
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af' }}>
+                    {visibleStart + 1} / {countdowns.length}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {activeCountdown ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 14,
+                  flexWrap: 'wrap',
+                  minWidth: 0,
+                }}
+              >
+                <div
+                  style={{
+                    minWidth: 0,
+                    maxWidth: 220,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: '#9ca3af',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {activeCountdown.name}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 0, flexWrap: 'wrap' }}>
+                  {Array.from({ length: activeCountdown.max }).map((_, index) => {
+                    const step = index + 1
+                    const filled = step <= activeCountdown.value
+                    const nextValue = activeCountdown.value === step ? step - 1 : step
+                    const showConnector = index < activeCountdown.max - 1
+                    const connectorFilled = step < activeCountdown.value
+
+                    return editable ? (
+                      <div
+                        key={`${activeCountdown.id}-${step}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onUpdateCountdown(activeCountdown.id, nextValue)}
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: 999,
+                            border: filled ? '2px solid rgba(251, 113, 133, 0.9)' : '2px solid rgba(209, 213, 219, 0.95)',
+                            background: filled ? 'radial-gradient(circle at 35% 35%, #fda4af, #fb7185 58%, #f43f5e)' : 'rgba(255,255,255,0.92)',
+                            boxShadow: filled ? '0 3px 10px rgba(244, 63, 94, 0.18)' : 'none',
+                            cursor: 'pointer',
+                          }}
+                        />
+                        {showConnector && (
+                          <div
+                            style={{
+                              width: 18,
+                              height: 2,
+                              marginInline: 2,
+                              borderRadius: 999,
+                              background: connectorFilled ? 'rgba(251, 113, 133, 0.75)' : 'rgba(209, 213, 219, 0.85)',
+                            }}
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <div
+                        key={`${activeCountdown.id}-${step}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: 999,
+                            border: filled ? '2px solid rgba(251, 113, 133, 0.9)' : '2px solid rgba(209, 213, 219, 0.95)',
+                            background: filled ? 'radial-gradient(circle at 35% 35%, #fda4af, #fb7185 58%, #f43f5e)' : 'rgba(255,255,255,0.92)',
+                            boxShadow: filled ? '0 3px 10px rgba(244, 63, 94, 0.18)' : 'none',
+                          }}
+                        />
+                        {showConnector && (
+                          <div
+                            style={{
+                              width: 18,
+                              height: 2,
+                              marginInline: 2,
+                              borderRadius: 999,
+                              background: connectorFilled ? 'rgba(251, 113, 133, 0.75)' : 'rgba(209, 213, 219, 0.85)',
+                            }}
+                          />
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+                <div style={{ fontSize: 28, fontWeight: 900, color: '#374151' }}>
+                  {activeCountdown.value}
+                  <span style={{ fontSize: 18, fontWeight: 800, color: '#4b5563' }}> / {activeCountdown.max}</span>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  minHeight: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: '#c08457',
+                }}
+              >
+                {editable ? '还没有进度钟，点击“管理”新增。' : 'GM 还没有添加进度钟。'}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {editable && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', marginLeft: 'auto' }}>
+            <button
+              className="btn btn-sm"
+              onClick={() => onChange(Math.max(0, value - 1))}
+              style={{
+                background: '#16a34a',
+                borderColor: '#16a34a',
+                color: 'white',
+                minHeight: 30,
+                paddingInline: 14,
+                boxShadow: '0 6px 18px rgba(22, 163, 74, 0.18)',
+              }}
+            >
+              - 暗影消散
+            </button>
+            <button
+              className="btn btn-sm"
+              onClick={() => onChange(Math.min(max, value + 1))}
+              style={{
+                background: '#e11d48',
+                borderColor: '#e11d48',
+                color: 'white',
+                minHeight: 30,
+                paddingInline: 14,
+                boxShadow: '0 6px 18px rgba(225, 29, 72, 0.2)',
+              }}
+            >
+              + 恐惧滋生
+            </button>
+            <button className="btn btn-secondary btn-sm" onClick={() => onChange(0)} style={{ minHeight: 30, paddingInline: 12 }}>
+              <RotateCcw size={13} /> 重置
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showCreator && editable && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 12,
+            borderRadius: 16,
+            border: '1px solid rgba(251, 191, 36, 0.24)',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.8), rgba(255,251,235,0.9))',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+              marginBottom: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#7c2d12' }}>倒计时管理</div>
+              {activeCountdown && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#9a3412' }}>
+                  当前: {activeCountdown.name}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {hasOverflow && (
+                <>
+                  <IconButton title="上一个倒计时" onClick={() => setVisibleStart((current) => Math.max(0, current - 1))} disabled={visibleStart === 0}>
+                    <ChevronLeft size={14} />
+                  </IconButton>
+                  <IconButton
+                    title="下一个倒计时"
+                    onClick={() => setVisibleStart((current) => Math.min(maxStart, current + 1))}
+                    disabled={visibleStart >= maxStart}
+                  >
+                    <ChevronRight size={14} />
+                  </IconButton>
+                </>
+              )}
+              {activeCountdown && (
+                <button className="btn btn-secondary btn-sm" onClick={() => onDeleteCountdown(activeCountdown.id)}>
+                  <Trash2 size={14} /> 删除当前倒计时
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
+              flexWrap: 'wrap',
+            }}
+          >
+            <input
+              value={draftName}
+              onChange={(event) => setDraftName(event.target.value)}
+              placeholder="倒计时名称"
+              style={{
+                flex: '1 1 220px',
+                minWidth: 180,
+                height: 36,
+                borderRadius: 10,
+                border: '1px solid rgba(15, 23, 42, 0.12)',
+                background: 'white',
+                padding: '0 12px',
+                fontSize: 13,
+              }}
+            />
+            <input
+              value={draftMax}
+              onChange={(event) => setDraftMax(event.target.value)}
+              type="number"
+              min={2}
+              max={12}
+              placeholder="上限"
+              style={{
+                width: 92,
+                height: 36,
+                borderRadius: 10,
+                border: '1px solid rgba(15, 23, 42, 0.12)',
+                background: 'white',
+                padding: '0 12px',
+                fontSize: 13,
+              }}
+            />
+            <button className="btn btn-primary btn-sm" onClick={submitCountdown}>
+              <Plus size={14} /> 新增倒计时
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${max}, minmax(56px, 1fr))`,
+          gap: 8,
+        }}
+      >
+        {Array.from({ length: max }).map((_, index) => {
+          const step = index + 1
+          const active = step <= value
+          const opacity = 0.12 + (index / Math.max(1, max - 1)) * 0.88
+
+          return (
+            <button
+              key={step}
+              type="button"
+              disabled={!editable}
+              onClick={() => editable && onChange(step)}
+              style={{
+                height: 36,
+                borderRadius: 10,
+                border: active ? '1px solid rgba(251, 113, 133, 0.3)' : '1px solid rgba(252, 165, 165, 0.18)',
+                background: active
+                  ? `linear-gradient(135deg, rgba(255, 214, 222, ${Math.min(0.92, opacity + 0.08)}), rgba(251, 113, 133, ${Math.min(0.88, opacity + 0.14)}))`
+                  : 'rgba(255,255,255,0.58)',
+                color: active ? 'white' : '#f43f5e',
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: editable ? 'pointer' : 'default',
+                boxShadow: active ? 'inset 0 1px 0 rgba(255,255,255,0.28)' : 'none',
               }}
             >
               {step}

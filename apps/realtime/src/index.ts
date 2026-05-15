@@ -23,6 +23,7 @@ import {
   type Player,
   type ResourceTrackerActivityLogItem,
   type ResourceTrackerCharacterColumn,
+  type ResourceTrackerCountdown,
   type ResourceTrackerResourceChangeRequest,
   type ResourceTrackerResourceKey,
   type ResourceTrackerSheet,
@@ -438,6 +439,27 @@ export class RoomDurableObject {
         this.requireHost(player)
         this.updateTrackerFear(player, message.payload.value)
         await this.commit('tracker.updateFear')
+        return
+
+      case 'tracker.createCountdown':
+        this.requireResourceTrackerRoom()
+        this.requireHost(player)
+        this.createTrackerCountdown(player, message.payload.name, message.payload.max)
+        await this.commit('tracker.createCountdown')
+        return
+
+      case 'tracker.updateCountdown':
+        this.requireResourceTrackerRoom()
+        this.requireHost(player)
+        this.updateTrackerCountdown(player, message.payload.countdownId, message.payload.value)
+        await this.commit('tracker.updateCountdown')
+        return
+
+      case 'tracker.deleteCountdown':
+        this.requireResourceTrackerRoom()
+        this.requireHost(player)
+        this.deleteTrackerCountdown(player, message.payload.countdownId)
+        await this.commit('tracker.deleteCountdown')
         return
 
       case 'tracker.moveColumn':
@@ -989,6 +1011,50 @@ export class RoomDurableObject {
     }
   }
 
+  private createTrackerCountdown(player: Player, name: string, max: number): void {
+    const tracker = this.requireResourceTrackerState()
+    const normalizedMax = clamp(Math.round(finiteNumber(max, 4)), 2, 12)
+    const normalizedName = cleanText(name, `倒计时 ${tracker.countdowns.length + 1}`, 40)
+    const now = new Date().toISOString()
+
+    tracker.countdowns.push({
+      id: id('tracker_clock'),
+      name: normalizedName,
+      value: 0,
+      max: normalizedMax,
+      created_at: now,
+      updated_at: now,
+    })
+
+    this.appendTrackerLog('system', `${player.nickname} 新增了倒计时「${normalizedName}」(0/${normalizedMax})`, player)
+  }
+
+  private updateTrackerCountdown(player: Player, countdownId: string, value: number): void {
+    const countdown = this.requireTrackerCountdown(countdownId)
+    const previous = countdown.value
+    countdown.value = clamp(Math.round(finiteNumber(value, previous)), 0, countdown.max)
+
+    if (previous === countdown.value) {
+      return
+    }
+
+    countdown.updated_at = new Date().toISOString()
+    this.appendTrackerLog(
+      'resource-change',
+      `${player.nickname} 将倒计时「${countdown.name}」从 ${previous}/${countdown.max} 调整为 ${countdown.value}/${countdown.max}`,
+      player,
+    )
+  }
+
+  private deleteTrackerCountdown(player: Player, countdownId: string): void {
+    const tracker = this.requireResourceTrackerState()
+    const countdownIndex = tracker.countdowns.findIndex((item) => item.id === countdownId)
+    if (countdownIndex < 0) throw new Error('Unknown countdown')
+
+    const [countdown] = tracker.countdowns.splice(countdownIndex, 1)
+    this.appendTrackerLog('system', `${player.nickname} 删除了倒计时「${countdown.name}」`, player)
+  }
+
   private moveTrackerColumn(player: Player, columnId: string, direction: 'left' | 'right'): void {
     const tracker = this.requireResourceTrackerState()
     const currentIndex = tracker.column_order.indexOf(columnId)
@@ -1490,6 +1556,13 @@ export class RoomDurableObject {
     return column
   }
 
+  private requireTrackerCountdown(countdownId: string): ResourceTrackerCountdown {
+    const tracker = this.requireResourceTrackerState()
+    const countdown = tracker.countdowns.find((item) => item.id === countdownId)
+    if (!countdown) throw new Error('Unknown countdown')
+    return countdown
+  }
+
   private requireTrackerColumnWritePermission(player: Player, column: ResourceTrackerCharacterColumn): void {
     const room = this.requireRoom()
     if (player.id === room.host_player_id) return
@@ -1629,6 +1702,7 @@ function createEmptyResourceTrackerState(): ResourceTrackerState {
       value: 0,
       max: 12,
     },
+    countdowns: [],
     columns: [],
     column_order: [],
     pending_resource_requests: [],
@@ -1644,6 +1718,9 @@ function normalizeResourceTrackerState(value: ResourceTrackerState | undefined):
       value: clamp(Math.round(finiteNumber(value.fear?.value, 0)), 0, 12),
       max: 12,
     },
+    countdowns: Array.isArray(value.countdowns)
+      ? value.countdowns.map((countdown, index) => normalizeResourceTrackerCountdown(countdown, index))
+      : [],
     columns: Array.isArray(value.columns)
       ? value.columns.map((column) => ({
         ...column,
@@ -1653,6 +1730,22 @@ function normalizeResourceTrackerState(value: ResourceTrackerState | undefined):
     column_order: Array.isArray(value.column_order) ? value.column_order.filter((item) => typeof item === 'string') : [],
     pending_resource_requests: Array.isArray(value.pending_resource_requests) ? value.pending_resource_requests : [],
     activity_log: Array.isArray(value.activity_log) ? value.activity_log.slice(-120) : [],
+  }
+}
+
+function normalizeResourceTrackerCountdown(
+  countdown: Partial<ResourceTrackerCountdown> | undefined,
+  index: number,
+): ResourceTrackerCountdown {
+  const now = new Date().toISOString()
+  const max = clamp(Math.round(finiteNumber(countdown?.max, 4)), 2, 12)
+  return {
+    id: cleanText(countdown?.id, id('tracker_clock'), 120),
+    name: cleanText(countdown?.name, `倒计时 ${index + 1}`, 40),
+    value: clamp(Math.round(finiteNumber(countdown?.value, 0)), 0, max),
+    max,
+    created_at: cleanText(countdown?.created_at, now, 80),
+    updated_at: cleanText(countdown?.updated_at, countdown?.created_at || now, 80),
   }
 }
 
