@@ -276,10 +276,26 @@ function FearBar({
 
         {editable && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => onChange(Math.max(0, value - 1))}>
-              一暗影消散
+            <button
+              className="btn btn-sm"
+              onClick={() => onChange(Math.max(0, value - 1))}
+              style={{
+                background: '#16a34a',
+                borderColor: '#16a34a',
+                color: 'white',
+              }}
+            >
+              - 暗影消散
             </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => onChange(Math.min(max, value + 1))}>
+            <button
+              className="btn btn-sm"
+              onClick={() => onChange(Math.min(max, value + 1))}
+              style={{
+                background: '#e11d48',
+                borderColor: '#e11d48',
+                color: 'white',
+              }}
+            >
               + 恐惧滋生
             </button>
             <button className="btn btn-secondary btn-sm" onClick={() => onChange(0)}>
